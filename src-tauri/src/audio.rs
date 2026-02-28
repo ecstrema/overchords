@@ -1,8 +1,11 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::thread;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use spectrum_analyzer::{samples_fft_to_spectrum, FrequencyLimit, scaling::scale_to_zero_to_one};
+use spectrum_analyzer::{samples_fft_to_spectrum, scaling::scale_to_zero_to_one, FrequencyLimit};
 use tauri::{AppHandle, Emitter};
 
 use serde::Serialize;
@@ -12,8 +15,8 @@ static RUNNING: AtomicBool = AtomicBool::new(false);
 #[derive(Serialize, Debug, Clone)]
 pub struct NoteEvent {
     pub midi: u8,
-    pub name: String,
     pub frequency: f32,
+    pub magnitude: f32,
 }
 
 // simple frequency -> midi / name utilities
@@ -22,21 +25,7 @@ fn frequency_to_midi(freq: f32) -> u8 {
         return 0;
     }
     let midi = 12.0 * (freq / 440.0).log2() + 69.0;
-    let midi = midi.round();
-    if midi < 0.0 {
-        0
-    } else if midi > 127.0 {
-        127
-    } else {
-        midi as u8
-    }
-}
-
-fn midi_to_name(midi: u8) -> String {
-    const NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    let note = NAMES[(midi % 12) as usize];
-    let octave = (midi / 12).saturating_sub(1); // midi 0 is C-1
-    format!("{}{}", note, octave)
+    midi.round().clamp(0.0, 127.0) as u8
 }
 
 /// Start capturing audio in a background thread and emit `notes` events on the provided AppHandle.
@@ -119,30 +108,66 @@ pub fn start_listening(app_handle: AppHandle) {
             if let Ok(spectrum) = samples_fft_to_spectrum(
                 &audio_samples,
                 sample_rate as u32,
-                FrequencyLimit::All,
+                FrequencyLimit::Max(12e3),
                 Some(&scale_to_zero_to_one),
             ) {
-                // pick peaks above threshold
-                let threshold = 0.1;
-                let mut notes = Vec::new();
-                for (freq, value) in spectrum.data() {
-                    let val = value.val();
-                    if val > threshold {
-                        let midi = frequency_to_midi(freq.val());
-                        if notes.iter().any(|n: &NoteEvent| n.midi == midi) {
+                // smarter peak picking:
+                // 1. compute a relative threshold based on the maximum magnitude
+                // 2. only consider local maxima in the spectrum
+                // 3. keep only the highest-valued bin for each midi note
+                // 4. emit up to a fixed number of strongest notes
+                let data = spectrum.data();
+                let mut notes_map: std::collections::HashMap<u8, (f32, f32)> =
+                    std::collections::HashMap::new();
+
+                if !data.is_empty() {
+                    // find max magnitude
+                    let max_val = data.iter().map(|(_, v)| v.val()).fold(0.0, f32::max);
+                    // relative threshold (20% of peak) but at least a small absolute floor
+                    let rel_thresh = max_val * 0.5;
+                    let abs_floor = 0.05;
+                    let threshold = rel_thresh.max(abs_floor);
+
+                    // scan for local maxima
+                    for i in 1..data.len() - 1 {
+                        let (freq, val) = data[i];
+                        let mag = val.val();
+                        if mag < threshold {
                             continue;
                         }
-                        notes.push(NoteEvent {
-                            midi,
-                            name: midi_to_name(midi),
-                            frequency: freq.val(),
-                        });
+                        let prev = data[i - 1].1.val();
+                        let next = data[i + 1].1.val();
+                        if mag >= prev && mag >= next {
+                            let midi = frequency_to_midi(freq.val());
+                            let entry = notes_map.entry(midi).or_insert((mag, freq.val()));
+                            if mag > entry.0 {
+                                *entry = (mag, freq.val());
+                            }
+                        }
                     }
                 }
-                if !notes.is_empty() {
-                    let _ = app_handle.emit("notes", notes.clone());
+
+                // convert hashmap to list including magnitude and sort by mag desc
+                let mut notes_vec: Vec<(u8, f32, f32)> = notes_map
+                    .into_iter()
+                    .map(|(midi, (mag, freq))| (midi, freq, mag))
+                    .collect();
+                notes_vec
+                    .sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+
+                let mut notes = Vec::new();
+                for (midi, freq, mag) in notes_vec.iter().take(10) {
+                    notes.push(NoteEvent {
+                        midi: *midi,
+                        frequency: *freq,
+                        magnitude: *mag,
+                    });
                 }
+
+                let _ = app_handle.emit("notes", notes.clone());
             }
+
+            //
         }
 
         // dropping stream stops it automatically

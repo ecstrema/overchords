@@ -1,34 +1,41 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import { listen } from '@tauri-apps/api/event';
-  import { writable } from 'svelte/store';
-  import Piano from '../components/Piano.svelte';
+  import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
+  import Piano from "../components/Piano.svelte";
+  import type { ActiveNotes, NoteEvent } from "../lib/types";
+  import { midiToData } from "../lib/midi";
+  import { SvelteMap } from "svelte/reactivity";
 
-  const activeNotes = writable<string[]>([]);
+  let activeNotes: ActiveNotes = new SvelteMap<number, NoteEvent>();
 
   onMount(async () => {
     // start backend thread
-    await invoke('start_audio_listening');
+    await invoke("start_audio_listening");
 
-    const unlisten = await listen<string[]>('notes', (event) => {
-      // payload is Vec<NoteEvent>, but serde will convert to array of objects
-      // we only care about the `name` field
-      const notes = (event.payload as any[]).map((n) => n.name as string);
-      activeNotes.set(notes);
+    const unlisten = await listen<string[]>("notes", (event) => {
+      const noteEvents = event.payload as any as NoteEvent[];
+      activeNotes.clear();
+      for (const n of noteEvents) {
+        activeNotes.set(n.midi, n)
+      }
     });
 
     return () => {
       unlisten();
-      invoke('stop_audio_listening');
+      invoke("stop_audio_listening");
     };
   });
 </script>
 
-<main class="container">
-  <h1>Overchords</h1>
-  <p>Shows notes currently playing on your system in real time.</p>
-
-  <Piano activeNotes={$activeNotes} />
-  <p>Currently playing: {$activeNotes.join(', ')}</p>
+<main style="display: flex; align-items: center; justify-content: center;" data-tauri-drag-region>
+  <Piano activeNotes={activeNotes} />
 </main>
+
+<style>
+  :global(html, body, main) {
+    padding: 0;
+    margin: 0;
+    background-color: transparent;
+  }
+</style>

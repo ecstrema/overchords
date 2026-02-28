@@ -14,7 +14,10 @@
       {
         "title": "overchords",
         "width": 800,
-        "height": 600
+        "height": 120,
+        "decorations": false,
+        "maximizable": false,
+        "resizable": false
       }
     ],
     "security": {
