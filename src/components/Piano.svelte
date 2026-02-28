@@ -31,12 +31,7 @@
     "A#",
     "B",
   ];
-  function noteName(midi: number) {
-    const note = names[midi % 12];
-    const octave = Math.floor(midi / 12) - 1;
-    return `${note}${octave}`;
-  }
-  for (let m = 0; m < 128; m++) {
+  for (let m = 21; m < 108; m++) {
     const name = names[m % 12];
     const isSharp = name.includes("#");
     const octave = Math.floor(m / 12) - 1;
@@ -47,7 +42,7 @@
       whiteCount++;
     } else {
       // place black key slightly to the right of previous white
-      x = (whiteCount - 1) * whiteWidth + whiteWidth * 0.6;
+      x = whiteCount * whiteWidth - blackWidth / 2;
     }
     keys.push({ midi: m, name, isSharp, fullName, x });
   }
@@ -67,37 +62,12 @@
   {/each}
   {#each keys.filter(k => k.isSharp) as key (key.midi)}
     <rect
-      x={key.x - blackWidth / 2}
+      x={key.x}
       y="0"
       width={blackWidth}
       height={blackHeight}
       fill={activeNotes.includes(key.fullName) ? '#f39' : '#000'}
+      stroke="#000"
     />
   {/each}
 </svg>
-
-<style>
-  .keyboard {
-    display: flex;
-    position: relative;
-    user-select: none;
-  }
-  .key {
-    width: 40px;
-    height: 150px;
-    border: 1px solid #000;
-    box-sizing: border-box;
-    background: #fff;
-    position: relative;
-  }
-  .key.sharp {
-    width: 30px;
-    height: 100px;
-    background: #000;
-    position: absolute;
-    z-index: 1;
-  }
-  .active {
-    background: #f39;
-  }
-</style>
