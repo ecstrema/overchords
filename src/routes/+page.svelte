@@ -41,17 +41,17 @@
     class="h-fit absolute top-1 right-1"
   >
     <Button
-      variant="outline"
+      variant="default"
       size="icon"
-      aria-label="Close"
       onclick={() => getCurrentWindow().close()}
+      title="Close"
     >
       <span class="icon-[lucide--x] h-4 w-4"></span>
     </Button>
     <Button
-      variant="outline"
+      variant="default"
       size="icon"
-      aria-label="Settings"
+      title="Open Settings"
       onclick={() => {}}
     >
       <span class="icon-[lucide--settings] h-4 w-4"></span>
