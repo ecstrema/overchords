@@ -6,7 +6,17 @@
   import { midiToData, type NoteData } from "../lib/midi";
   import type { ActiveNotes } from "../lib/types";
 
-  const { activeNotes }: { activeNotes: ActiveNotes } = $props();
+  const centerCMidi = 60;
+
+  export interface Props {
+    activeNotes: ActiveNotes;
+    onResize?: (width: number, height: number) => void;
+    displayStartMidi?: number;
+    displayEndMidi?: number;
+    midiRangeMode?: "range" | "auto";
+  }
+
+  const { activeNotes, onResize = () => {}, displayStartMidi = centerCMidi - 24, displayEndMidi = centerCMidi + 24, midiRangeMode = "range" }: Props = $props();
 
   // constants for SVG sizing
   const whiteWidth = $state(20);
@@ -14,11 +24,8 @@
   const blackWidth = $state(12);
   const blackHeight = $state(80);
 
-  const centerCMidi = 60;
-  // let displayStart = $derived.by(() => Math.min(centerCMidi - 10, ...activeNotes.keys()) - 2);
-  // let displayEnd = $derived.by(() => Math.max(centerCMidi + 10, ...activeNotes.keys()) + 2);
-  let displayStart = $state(centerCMidi - 24);
-  let displayEnd = $state(centerCMidi + 24);
+  let displayStart = $derived.by(() => (midiRangeMode === "auto" ? Math.min(centerCMidi - 10, ...activeNotes.keys()) - 2 : displayStartMidi));
+  let displayEnd = $derived.by(() => (midiRangeMode === "auto" ? Math.max(centerCMidi + 10, ...activeNotes.keys()) + 2 : displayEndMidi));
 
   function getPosition(midiPosition: number) {
     const data = midiToData(midiPosition);
@@ -42,6 +49,10 @@
   const svgViewEnd = Tween.of<number>(() => getEndPosition(displayEnd), {
     duration: (from, to) => (to > from ? 50 : 5000),
     easing: linear,
+  });
+
+  $effect(() => {
+    onResize(svgViewEnd.current - svgViewStart.current, whiteHeight);
   });
 
   // determine center C (midi 60) position for dot

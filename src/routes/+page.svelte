@@ -5,7 +5,7 @@
   import Piano from "../components/Piano.svelte";
   import type { ActiveNotes, NoteEvent } from "$lib/types";
   import { SvelteMap } from "svelte/reactivity";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
   import { Button } from "$lib/components/ui/button";
   import * as ButtonGroup from "$lib/components/ui/button-group";
 
@@ -28,13 +28,17 @@
       invoke("stop_audio_listening");
     };
   });
+
+  const resizeToPianoSize = async (width: number, height: number) => {
+    await getCurrentWindow().setSize(new LogicalSize(width, height));
+  };
 </script>
 
-<div class="opacity-30 hover:opacity-100 transition-opacity duration-100">
+<div class="opacity-30 hover:opacity-100 transition-opacity duration-200">
   <ButtonGroup.Root
     orientation="vertical"
     aria-label="Media controls"
-    class="h-fit absolute top-0 right-4"
+    class="h-fit absolute top-1 right-1"
   >
     <Button
       variant="outline"
@@ -55,9 +59,9 @@
   </ButtonGroup.Root>
 
   <main
-    class="flex items-center justify-center cursor-move"
     data-tauri-drag-region
+    class="flex items-center justify-center cursor-move"
   >
-    <Piano {activeNotes} />
+    <Piano {activeNotes} onResize={resizeToPianoSize} />
   </main>
 </div>
