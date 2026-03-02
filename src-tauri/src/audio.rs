@@ -124,7 +124,7 @@ pub fn start_listening(app_handle: AppHandle) {
                     // find max magnitude
                     let max_val = data.iter().map(|(_, v)| v.val()).fold(0.0, f32::max);
                     // relative threshold (20% of peak) but at least a small absolute floor
-                    let rel_thresh = max_val * 0.5;
+                    let rel_thresh = max_val * 0.7;
                     let abs_floor = 0.05;
                     let threshold = rel_thresh.max(abs_floor);
 
@@ -156,7 +156,7 @@ pub fn start_listening(app_handle: AppHandle) {
                     .sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
 
                 let mut notes = Vec::new();
-                for (midi, freq, mag) in notes_vec.iter().take(10) {
+                for (midi, freq, mag) in notes_vec.iter().take(5) {
                     notes.push(NoteEvent {
                         midi: *midi,
                         frequency: *freq,

@@ -15,18 +15,13 @@
   const blackHeight = $state(80);
 
   const centerCMidi = 60;
-  let displayStart = $derived.by(() => Math.min(centerCMidi - 10, ...activeNotes.keys()) - 2);
-  let displayEnd = $derived.by(() => Math.max(centerCMidi + 10, ...activeNotes.keys()) + 2);
+  // let displayStart = $derived.by(() => Math.min(centerCMidi - 10, ...activeNotes.keys()) - 2);
+  // let displayEnd = $derived.by(() => Math.max(centerCMidi + 10, ...activeNotes.keys()) + 2);
+  let displayStart = $state(centerCMidi - 24);
+  let displayEnd = $state(centerCMidi + 24);
 
   function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max)
-  }
-
-  function setDisplayStart(value: number) {
-    displayStart = clamp(value, 0, Math.min(displayEnd - 1, centerCMidi));
-  }
-  function setDisplayEnd(value: number) {
-    displayEnd = clamp(value - 1, Math.max(displayStart + 1, centerCMidi), 128);
   }
 
   function getPosition(midiPosition: number) {
@@ -74,7 +69,7 @@
       y="0"
       width={whiteWidth}
       height={whiteHeight}
-      fill={active ? "#f39" : "#fff"}
+      fill={active ? "#f39" : "rgba(255,255,255,0.4)"}
       stroke="#000"
       style={active ? "" : "transition: fill 0.3s linear"}
     />
@@ -87,7 +82,7 @@
       y="0"
       width={blackWidth}
       height={blackHeight}
-      fill={active ? "#f39" : "#000"}
+      fill={active ? "#f39" : "rgba(0,0,0,0.4)"}
       stroke="#000"
       style={active ? "" : "transition: fill 0.3s linear"}
     />
