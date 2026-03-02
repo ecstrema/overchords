@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { linear, quadInOut } from 'svelte/easing'
+  import { linear, quadInOut } from "svelte/easing";
   import { Tween } from "svelte/motion";
 
   import { midiToData, type NoteData } from "../lib/midi";
@@ -20,71 +20,61 @@
   let displayStart = $state(centerCMidi - 24);
   let displayEnd = $state(centerCMidi + 24);
 
-  function clamp(value: number, min: number, max: number) {
-    return Math.min(Math.max(value, min), max)
-  }
-
   function getPosition(midiPosition: number) {
     const data = midiToData(midiPosition);
     if (data.isSharp) {
-      return (data.pianoPos + 0.5) * whiteWidth - blackWidth / 2
+      return (data.pianoPos + 0.5) * whiteWidth - blackWidth / 2;
     }
     return data.pianoPos * whiteWidth;
   }
   function getEndPosition(midiPosition: number) {
     const data = midiToData(midiPosition);
     if (data.isSharp) {
-      return (data.pianoPos + 0.5) * whiteWidth + blackWidth / 2
+      return (data.pianoPos + 0.5) * whiteWidth + blackWidth / 2;
     }
     return (data.pianoPos + 1) * whiteWidth;
   }
 
-  const svgViewStart = Tween.of<number>(() => getPosition(displayStart), {duration: 100, easing: quadInOut})
-  const svgViewEnd = Tween.of<number>(() => getEndPosition(displayEnd), {duration: (from, to) => to > from ? 50: 5000, easing: linear });
+  const svgViewStart = Tween.of<number>(() => getPosition(displayStart), {
+    duration: 100,
+    easing: quadInOut,
+  });
+  const svgViewEnd = Tween.of<number>(() => getEndPosition(displayEnd), {
+    duration: (from, to) => (to > from ? 50 : 5000),
+    easing: linear,
+  });
 
   // determine center C (midi 60) position for dot
-  const centerCMidiData = midiToData(centerCMidi)
-  const centerCx = $derived.by(() => centerCMidiData.pianoPos * whiteWidth + whiteWidth / 2);
+  const centerCMidiData = midiToData(centerCMidi);
+  const centerCx = $derived.by(
+    () => centerCMidiData.pianoPos * whiteWidth + whiteWidth / 2,
+  );
 
-  const whiteKeys: (NoteData & {midi: number})[] = []
-  const blackKeys: (NoteData & {midi: number})[] = []
+  const whiteKeys: (NoteData & { midi: number })[] = [];
+  const blackKeys: (NoteData & { midi: number })[] = [];
   for (let i = 0; i < 128; i++) {
     const data = midiToData(i);
-    (data.isSharp ? blackKeys : whiteKeys).push({...data, midi: i});
+    (data.isSharp ? blackKeys : whiteKeys).push({ ...data, midi: i });
   }
 </script>
 
 <svg
-  class="keyboard"
+  class="transition-opacity duration-500 pointer-events-none"
   width={svgViewEnd.current - svgViewStart.current}
   height={whiteHeight}
   viewBox={`${svgViewStart.current} 0 ${svgViewEnd.current - svgViewStart.current} ${whiteHeight}`}
-  style:transition={"viewbox 0.5s linear"}
 >
-  {#each whiteKeys as data}
+  {#each [...whiteKeys, ...blackKeys] as data}
     {@const active = activeNotes.has(data.midi)}
     <rect
+      class="transition-colors duration-300"
+      fill={active ? "#f00" : data.isSharp ? "#000" : "#fff"}
+      stroke="black"
       data-key={data.noteName}
       x={getPosition(data.midi)}
       y="0"
-      width={whiteWidth}
-      height={whiteHeight}
-      fill={active ? "#f39" : "rgba(255,255,255,0.4)"}
-      stroke="#000"
-      style={active ? "" : "transition: fill 0.3s linear"}
-    />
-  {/each}
-  {#each blackKeys as data}
-    {@const active = activeNotes.has(data.midi)}
-    <rect
-      data-key={data.noteName}
-      x={getPosition(data.midi)}
-      y="0"
-      width={blackWidth}
-      height={blackHeight}
-      fill={active ? "#f39" : "rgba(0,0,0,0.4)"}
-      stroke="#000"
-      style={active ? "" : "transition: fill 0.3s linear"}
+      width={data.isSharp ? blackWidth : whiteWidth}
+      height={data.isSharp ? blackHeight : whiteHeight}
     />
   {/each}
   <circle cx={centerCx} cy={whiteHeight - 8} r="4" fill="#000" />
