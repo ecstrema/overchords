@@ -6,8 +6,10 @@
   import type { ActiveNotes, NoteEvent } from "$lib/types";
   import { SvelteMap } from "svelte/reactivity";
   import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+  import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { Button } from "$lib/components/ui/button";
   import * as ButtonGroup from "$lib/components/ui/button-group";
+  import { resetMode, setMode } from "mode-watcher";
 
   let activeNotes: ActiveNotes = new SvelteMap<number, NoteEvent>();
 
@@ -32,9 +34,28 @@
   const resizeToPianoSize = async (width: number, height: number) => {
     await getCurrentWindow().setSize(new LogicalSize(width, height));
   };
+
+  let settingsWindow: WebviewWindow | null = null;
+
+  function openSettings() {
+    if (settingsWindow) {
+      settingsWindow.show();
+      return;
+    }
+
+    // create a new Window and attach a Webview for the settings route
+    settingsWindow = new WebviewWindow("settings", {
+      url: "settings/",
+      title: "Settings",
+      width: 400,
+      height: 600,
+      maximizable: false,
+      center: true,
+    });
+  }
 </script>
 
-<div class="opacity-30 hover:opacity-100 transition-opacity duration-200">
+<div class="opacity-10 hover:opacity-100 transition-opacity duration-200">
   <ButtonGroup.Root
     orientation="vertical"
     aria-label="Media controls"
@@ -52,7 +73,7 @@
       variant="default"
       size="icon"
       title="Open Settings"
-      onclick={() => {}}
+      onclick={openSettings}
     >
       <span class="icon-[lucide--settings] h-4 w-4"></span>
     </Button>

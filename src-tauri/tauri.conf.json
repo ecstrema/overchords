@@ -14,6 +14,7 @@
     "windows": [
       {
         "title": "overchords",
+        "label": "main",
         "width": 800,
         "height": 120,
         "decorations": false,
@@ -21,7 +22,9 @@
         "resizable": false,
         "transparent": true,
         "shadow": false,
-        "alwaysOnTop": true
+        "alwaysOnTop": true,
+        "center": true,
+        "acceptFirstMouse": true
       }
     ],
     "security": {
