@@ -24,6 +24,7 @@ export interface NumberSetting extends SettingBase<number> {
   type: "number";
   value: number;
   range: [number, number];
+  step?: number;
 }
 
 export type Setting = SelectSetting | NumberSetting;
@@ -92,6 +93,7 @@ export class Settings {
       value: JSON.parse(localStorage.getItem("unfocused-opacity") || "50"),
       type: "number",
       range: [0, 100],
+      step: 5,
     },
     "notes-to-show": {
       id: "notes-to-show",

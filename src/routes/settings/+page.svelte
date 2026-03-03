@@ -73,6 +73,7 @@
                 type="number"
                 min={setting.range[0]}
                 max={setting.range[1]}
+                step={setting.step || 1}
                 bind:value={setting.value}
                 class="w-full"
               />

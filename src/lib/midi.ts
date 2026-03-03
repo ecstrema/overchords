@@ -41,13 +41,13 @@ export function filterHarmonics(notes: SvelteMap<number, NoteEvent>): void {
 
   for (const [midi, note] of notes) {
     const rootMagnitude = note.magnitude;
-    const harmonics = [1, 12, 15, 17, 19, 21, 22];
+    const harmonics = [1, 12, 19, 24, 28, 31, 34, 36];
     for (let i = 0; i < harmonics.length; i++) {
       const h = harmonics[i];
       const harmonicMidi = midi + h;
       const harmonicNote = notes.get(harmonicMidi);
       if (harmonicNote) {
-        const expectedMagnitude = rootMagnitude;
+        const expectedMagnitude = rootMagnitude / (i + 2); // decay by the harmonic number
         harmonicNote.magnitude -= expectedMagnitude;
         if (harmonicNote.magnitude < 0) {
           notes.delete(harmonicMidi);

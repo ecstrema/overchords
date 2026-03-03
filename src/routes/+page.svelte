@@ -91,6 +91,10 @@
       ? 1
       : settings.settings["unfocused-opacity"].value / 100;
   });
+
+  $effect(() => {
+    getCurrentWindow().setIgnoreCursorEvents(!windowFocused && settings.settings["unfocused-opacity"].value === 0);
+  });
 </script>
 
 <div class="hover:opacity-100 transition-opacity duration-200" style:opacity>
