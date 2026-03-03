@@ -20,12 +20,12 @@ pub struct NoteEvent {
 }
 
 // simple frequency -> midi / name utilities
-fn frequency_to_midi(freq: f32) -> u8 {
+fn frequency_to_midi(freq: f32) -> f32 {
     if freq <= 0.0 {
-        return 0;
+        return 0.0;
     }
     let midi = 12.0 * (freq / 440.0).log2() + 69.0;
-    midi.round().clamp(0.0, 127.0) as u8
+    midi.clamp(0.0, 127.0)
 }
 
 /// Start capturing audio in a background thread and emit `notes` events on the provided AppHandle.
@@ -111,60 +111,30 @@ pub fn start_listening(app_handle: AppHandle) {
                 FrequencyLimit::Max(12e3),
                 Some(&scale_to_zero_to_one),
             ) {
-                // smarter peak picking:
-                // 1. compute a relative threshold based on the maximum magnitude
-                // 2. only consider local maxima in the spectrum
-                // 3. keep only the highest-valued bin for each midi note
-                // 4. emit up to a fixed number of strongest notes
                 let data = spectrum.data();
-                let mut notes_map: std::collections::HashMap<u8, (f32, f32)> =
-                    std::collections::HashMap::new();
-
-                if !data.is_empty() {
-                    // find max magnitude
-                    let max_val = data.iter().map(|(_, v)| v.val()).fold(0.0, f32::max);
-                    // relative threshold (20% of peak) but at least a small absolute floor
-                    let rel_thresh = max_val * 0.7;
-                    let abs_floor = 0.05;
-                    let threshold = rel_thresh.max(abs_floor);
-
-                    // scan for local maxima
-                    for i in 1..data.len() - 1 {
-                        let (freq, val) = data[i];
-                        let mag = val.val();
-                        if mag < threshold {
-                            continue;
-                        }
-                        let prev = data[i - 1].1.val();
-                        let next = data[i + 1].1.val();
-                        if mag >= prev && mag >= next {
-                            let midi = frequency_to_midi(freq.val());
-                            let entry = notes_map.entry(midi).or_insert((mag, freq.val()));
-                            if mag > entry.0 {
-                                *entry = (mag, freq.val());
-                            }
-                        }
-                    }
-                }
-
-                // convert hashmap to list including magnitude and sort by mag desc
-                let mut notes_vec: Vec<(u8, f32, f32)> = notes_map
-                    .into_iter()
-                    .map(|(midi, (mag, freq))| (midi, freq, mag))
-                    .collect();
-                notes_vec
-                    .sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
-
-                let mut notes = Vec::new();
-                for (midi, freq, mag) in notes_vec.iter().take(5) {
-                    notes.push(NoteEvent {
-                        midi: *midi,
-                        frequency: *freq,
-                        magnitude: *mag,
+                // convert to midi notes
+                let mut notes_vec: Vec<NoteEvent> = Vec::with_capacity(128);
+                // init vec with frequency and midi, set magnitude to 0
+                for i in 0..128 {
+                    let freq = 440.0 * 2f32.powf((i as f32 - 69.0) / 12.0);
+                    notes_vec.push(NoteEvent {
+                        midi: i,
+                        frequency: freq,
+                        magnitude: 0.0,
                     });
                 }
+                // distribute magnitude to nearest midi notes with linear interpolation
+                for (freq, mag) in data.iter() {
+                    let midi = frequency_to_midi(freq.val()).clamp(0.0, 127.0);
+                    let lower = midi.floor() as usize;
+                    let upper = midi.ceil() as usize;
+                    let upper_weight = midi - lower as f32;
+                    let lower_weight = 1.0 - upper_weight;
+                    notes_vec[lower].magnitude += mag.val() * lower_weight;
+                    notes_vec[upper].magnitude += mag.val() * upper_weight;
+                }
 
-                let _ = app_handle.emit("notes", notes.clone());
+                app_handle.emit("notes", notes_vec.clone()).expect("failed to emit notes event");
             }
 
             //

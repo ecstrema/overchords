@@ -54,6 +54,9 @@
     });
 
     settingsWindow.onCloseRequested(() => {
+      if (settingsWindow) {
+        settingsWindow.close();
+      }
       settingsWindow = null;
     });
   }
@@ -71,18 +74,22 @@
     mounted = true;
 
     // set initial opacity based on focus state
-    getCurrentWindow().isFocused().then((focused) => {
-      windowFocused = focused;
-    });
+    getCurrentWindow()
+      .isFocused()
+      .then((focused) => {
+        windowFocused = focused;
+      });
   });
 
   const opacity = $derived.by(() => {
     if (!mounted) return 0;
-    return windowFocused ? 1 : settings.settings["unfocused-opacity"].value / 100;
+    return windowFocused
+      ? 1
+      : settings.settings["unfocused-opacity"].value / 100;
   });
 </script>
 
-<div class="hover:opacity-100 transition-opacity duration-200" style:opacity={opacity}>
+<div class="hover:opacity-100 transition-opacity duration-200" style:opacity>
   <ButtonGroup.Root
     orientation="vertical"
     aria-label="Media controls"

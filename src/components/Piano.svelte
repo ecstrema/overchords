@@ -79,6 +79,24 @@
     const data = midiToData(i);
     (data.isSharp ? blackKeys : whiteKeys).push({ ...data, midi: i });
   }
+
+  const maxMag = $derived.by(() => {
+    let max = 0.001;
+    for (const note of activeNotes.values()) {
+      if (note.magnitude > max) {
+        max = note.magnitude;
+      }
+    }
+    return max;
+  });
+
+  const noteDataToFillColor = (data: NoteData & { midi: number }) => {
+    const activeNote = activeNotes.get(data.midi);
+    const mag = activeNote ? activeNote.magnitude : 0;
+    const magHex = Math.round(mag * 255).toString(16).padStart(2, "0");
+    const inverseMagHex = (255 - Math.round(mag * 255)).toString(16).padStart(2, "0");
+    return data.isSharp ? `#${magHex}0000` : `#ff${inverseMagHex}${inverseMagHex}`;
+  };
 </script>
 
 <svg
@@ -88,17 +106,16 @@
   viewBox={`${svgViewStart.current} 0 ${svgViewEnd.current - svgViewStart.current} ${whiteHeight}`}
 >
   {#each [...whiteKeys, ...blackKeys] as data}
-    {@const active = activeNotes.has(data.midi)}
-    <rect
-      class="transition-colors duration-300"
-      fill={active ? "#f00" : data.isSharp ? "#000" : "#fff"}
-      stroke="black"
-      data-key={data.noteName}
-      x={getPosition(data.midi)}
-      y="0"
-      width={data.isSharp ? blackWidth : whiteWidth}
-      height={data.isSharp ? blackHeight : whiteHeight}
-    />
+    <g data-key={data.noteName}>
+      <rect
+        fill={noteDataToFillColor(data)}
+        stroke="black"
+        x={getPosition(data.midi)}
+        y="0"
+        width={data.isSharp ? blackWidth : whiteWidth}
+        height={data.isSharp ? blackHeight : whiteHeight}
+      />
+    </g>
   {/each}
   <circle cx={centerCx} cy={whiteHeight - 8} r="4" fill="#000" />
 </svg>
