@@ -32,7 +32,9 @@ export type AllSettings = {
   theme: SelectSetting;
   "piano.range.start": SelectSetting;
   "piano.range.end": SelectSetting;
+  "piano.size": NumberSetting;
   "unfocused-opacity": NumberSetting;
+  "notes-to-show": NumberSetting;
 };
 
 export class Settings {
@@ -91,6 +93,24 @@ export class Settings {
       type: "number",
       range: [0, 100],
     },
+    "notes-to-show": {
+      id: "notes-to-show",
+      name: "Notes to Show",
+      description: "Number of notes to display on the piano (default: 4)",
+      defaultValue: 4,
+      value: JSON.parse(localStorage.getItem("notes-to-show") || "4"),
+      type: "number",
+      range: [1, 12],
+    },
+    "piano.size": {
+      id: "piano.size",
+      name: "Piano Size",
+      description: "Size of the piano keys, as determined by the height of a white key (default: 20px)",
+      defaultValue: 20,
+      value: JSON.parse(localStorage.getItem("piano.size") || "20"),
+      type: "number",
+      range: [14, 100],
+    },
   });
 
   constructor() {
@@ -100,32 +120,16 @@ export class Settings {
         const setting = this.settings[key];
 
         function isEmpty(value: any) {
-          console.log(
-            "Checking if value is empty for setting",
-            setting.id,
-            "with value",
-            value,
-          );
           return Number.isNaN(value) || value === null || value === undefined;
         }
 
         if (isEmpty(event.newValue)) {
-          console.log(
-            "Resetting setting",
-            setting.id,
-            "to default value because new value is empty",
-          );
           setting.value = setting.defaultValue;
           return;
         }
 
         const parsedValue = JSON.parse(event.newValue!);
         if (isEmpty(parsedValue)) {
-          console.log(
-            "Resetting setting",
-            setting.id,
-            "to default value because parsed value is empty",
-          );
           setting.value = setting.defaultValue;
           return;
         }
@@ -160,7 +164,6 @@ export class Settings {
     for (const key in this.settings) {
       const setting = this.settings[key as keyof typeof this.settings];
       $effect(() => {
-        console.log("Saving setting", setting.id, "with value", setting.value);
         if (setting.value === setting.defaultValue) {
           localStorage.removeItem(setting.id);
         } else {

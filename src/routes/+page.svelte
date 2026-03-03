@@ -10,6 +10,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as ButtonGroup from "$lib/components/ui/button-group";
   import { getSettingsContext } from "$lib/settings.svelte";
+  import { filterHarmonics, keepNLoudest } from "$lib/midi";
 
   let activeNotes: ActiveNotes = new SvelteMap<number, NoteEvent>();
 
@@ -23,6 +24,9 @@
       for (const n of noteEvents) {
         activeNotes.set(n.midi, n);
       }
+
+      filterHarmonics(activeNotes);
+      keepNLoudest(activeNotes, settings.settings["notes-to-show"].value);
     });
 
     return () => {
@@ -93,7 +97,7 @@
   <ButtonGroup.Root
     orientation="vertical"
     aria-label="Media controls"
-    class="h-fit absolute top-1 right-1"
+    class="h-fit absolute top-1 right-1 opacity-60 hover:opacity-100 transition-opacity duration-200"
   >
     <Button
       variant="default"

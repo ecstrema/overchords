@@ -23,10 +23,10 @@
   const settings = getSettingsContext();
 
   // constants for SVG sizing
-  const whiteWidth = $state(20);
-  const whiteHeight = $state(120);
-  const blackWidth = $state(12);
-  const blackHeight = $state(80);
+  const whiteWidth = $derived.by(() => settings.settings["piano.size"].value);
+  const whiteHeight = $derived.by(() => whiteWidth * 6);
+  const blackWidth = $derived.by(() => whiteWidth * 0.6);
+  const blackHeight = $derived.by(() => blackWidth * 20 / 3);
 
   let displayStart = $derived.by(() =>
     midiRangeMode === "auto"
@@ -92,9 +92,9 @@
 
   const noteDataToFillColor = (data: NoteData & { midi: number }) => {
     const activeNote = activeNotes.get(data.midi);
-    const mag = activeNote ? activeNote.magnitude : 0;
-    const magHex = Math.round(mag * 255).toString(16).padStart(2, "0");
-    const inverseMagHex = (255 - Math.round(mag * 255)).toString(16).padStart(2, "0");
+    const mag = Math.round(255 * (activeNote ? Math.min(activeNote.magnitude, 1) : 0));
+    const magHex = mag.toString(16).padStart(2, "0");
+    const inverseMagHex = (255 - mag).toString(16).padStart(2, "0");
     return data.isSharp ? `#${magHex}0000` : `#ff${inverseMagHex}${inverseMagHex}`;
   };
 </script>
@@ -108,6 +108,8 @@
   {#each [...whiteKeys, ...blackKeys] as data}
     <g data-key={data.noteName}>
       <rect
+        data-active={activeNotes.has(data.midi)}
+        class="key"
         fill={noteDataToFillColor(data)}
         stroke="black"
         x={getPosition(data.midi)}
@@ -119,3 +121,14 @@
   {/each}
   <circle cx={centerCx} cy={whiteHeight - 8} r="4" fill="#000" />
 </svg>
+
+<style>
+  /* one way transition */
+  .key {
+    transition: fill 0.2s;
+  }
+
+  .key[data-active="true"] {
+    transition: fill 0s;
+  }
+</style>
