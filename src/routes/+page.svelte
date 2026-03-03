@@ -9,7 +9,6 @@
   import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { Button } from "$lib/components/ui/button";
   import * as ButtonGroup from "$lib/components/ui/button-group";
-  import { resetMode, setMode } from "mode-watcher";
 
   let activeNotes: ActiveNotes = new SvelteMap<number, NoteEvent>();
 
@@ -39,7 +38,7 @@
 
   function openSettings() {
     if (settingsWindow) {
-      settingsWindow.show();
+      settingsWindow.setFocus();
       return;
     }
 
@@ -52,10 +51,19 @@
       maximizable: false,
       center: true,
     });
+
+    settingsWindow.onCloseRequested(() => {
+      settingsWindow = null;
+    });
   }
+
+  let windowFocused = $state(false);
+  getCurrentWindow().onFocusChanged((focused) => {
+    windowFocused = focused.payload;
+  });
 </script>
 
-<div class="opacity-10 hover:opacity-100 transition-opacity duration-200">
+<div class="hover:opacity-100 transition-opacity duration-200" class:opacity-20={!windowFocused}>
   <ButtonGroup.Root
     orientation="vertical"
     aria-label="Media controls"

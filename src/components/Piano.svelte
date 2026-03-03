@@ -11,12 +11,31 @@
   export interface Props {
     activeNotes: ActiveNotes;
     onResize?: (width: number, height: number) => void;
-    displayStartMidi?: number;
-    displayEndMidi?: number;
     midiRangeMode?: "range" | "auto";
   }
 
-  const { activeNotes, onResize = () => {}, displayStartMidi = centerCMidi - 24, displayEndMidi = centerCMidi + 24, midiRangeMode = "range" }: Props = $props();
+  const {
+    activeNotes,
+    onResize = () => {},
+    midiRangeMode = "range",
+  }: Props = $props();
+
+  let displayStartMidi = $state(
+    parseInt(localStorage.getItem("piano.range.start") || "36", 10),
+  );
+
+  let displayEndMidi = $state(
+    parseInt(localStorage.getItem("piano.range.end") || "84", 10),
+  );
+
+  addEventListener("storage", (event) => {
+    if (event.key === "piano.range.start") {
+      displayStartMidi = parseInt(event.newValue || "36", 10);
+    }
+    if (event.key === "piano.range.end") {
+      displayEndMidi = parseInt(event.newValue || "84", 10);
+    }
+  });
 
   // constants for SVG sizing
   const whiteWidth = $state(20);
@@ -24,8 +43,16 @@
   const blackWidth = $state(12);
   const blackHeight = $state(80);
 
-  let displayStart = $derived.by(() => (midiRangeMode === "auto" ? Math.min(centerCMidi - 10, ...activeNotes.keys()) - 2 : displayStartMidi));
-  let displayEnd = $derived.by(() => (midiRangeMode === "auto" ? Math.max(centerCMidi + 10, ...activeNotes.keys()) + 2 : displayEndMidi));
+  let displayStart = $derived.by(() =>
+    midiRangeMode === "auto"
+      ? Math.min(centerCMidi - 10, ...activeNotes.keys()) - 2
+      : displayStartMidi,
+  );
+  let displayEnd = $derived.by(() =>
+    midiRangeMode === "auto"
+      ? Math.max(centerCMidi + 10, ...activeNotes.keys()) + 2
+      : displayEndMidi,
+  );
 
   function getPosition(midiPosition: number) {
     const data = midiToData(midiPosition);
@@ -47,7 +74,7 @@
     easing: quadInOut,
   });
   const svgViewEnd = Tween.of<number>(() => getEndPosition(displayEnd), {
-    duration: (from, to) => (to > from ? 50 : 5000),
+    duration: (from, to) => ((midiRangeMode === "range" || to > from) ? 50 : 5000),
     easing: linear,
   });
 

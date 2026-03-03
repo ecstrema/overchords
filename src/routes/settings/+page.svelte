@@ -47,6 +47,33 @@
         },
       ],
     },
+    {
+      id: "piano.range.start",
+      name: "Piano Range Start",
+      defaultValue: "36",
+      value: localStorage.getItem("piano.range.start") || "36",
+      type: "select",
+      options: [
+        { value: "0", label: "C0" },
+        { value: "24", label: "C1" },
+        { value: "36", label: "C2" },
+        { value: "60", label: "C3" },
+      ],
+    },
+    {
+      id: "piano.range.end",
+      name: "Piano Range End",
+      defaultValue: "84",
+      value: localStorage.getItem("piano.range.end") || "84",
+      type: "select",
+      options: [
+        { value: "72", label: "C4" },
+        { value: "84", label: "C5" },
+        { value: "96", label: "C6" },
+        { value: "108", label: "C7" },
+        { value: "120", label: "C8" },
+      ],
+    },
   ]);
 
   for (const setting of settings) {
