@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { getContext, onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import Piano from "../components/Piano.svelte";
@@ -9,6 +9,7 @@
   import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { Button } from "$lib/components/ui/button";
   import * as ButtonGroup from "$lib/components/ui/button-group";
+  import { getSettingsContext } from "$lib/settings.svelte";
 
   let activeNotes: ActiveNotes = new SvelteMap<number, NoteEvent>();
 
@@ -61,9 +62,27 @@
   getCurrentWindow().onFocusChanged((focused) => {
     windowFocused = focused.payload;
   });
+
+  const settings = getSettingsContext();
+
+  let mounted = $state(false);
+  $effect(() => {
+    if (mounted) return;
+    mounted = true;
+
+    // set initial opacity based on focus state
+    getCurrentWindow().isFocused().then((focused) => {
+      windowFocused = focused;
+    });
+  });
+
+  const opacity = $derived.by(() => {
+    if (!mounted) return 0;
+    return windowFocused ? 1 : settings.settings["unfocused-opacity"].value / 100;
+  });
 </script>
 
-<div class="hover:opacity-100 transition-opacity duration-200" class:opacity-20={!windowFocused}>
+<div class="hover:opacity-100 transition-opacity duration-200" style:opacity={opacity}>
   <ButtonGroup.Root
     orientation="vertical"
     aria-label="Media controls"

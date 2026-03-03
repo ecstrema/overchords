@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { linear, quadInOut } from "svelte/easing";
   import { Tween } from "svelte/motion";
 
   import { midiToData, type NoteData } from "../lib/midi";
   import type { ActiveNotes } from "../lib/types";
+  import { getSettingsContext } from "$lib/settings.svelte";
 
   const centerCMidi = 60;
 
@@ -20,22 +20,7 @@
     midiRangeMode = "range",
   }: Props = $props();
 
-  let displayStartMidi = $state(
-    parseInt(localStorage.getItem("piano.range.start") || "36", 10),
-  );
-
-  let displayEndMidi = $state(
-    parseInt(localStorage.getItem("piano.range.end") || "84", 10),
-  );
-
-  addEventListener("storage", (event) => {
-    if (event.key === "piano.range.start") {
-      displayStartMidi = parseInt(event.newValue || "36", 10);
-    }
-    if (event.key === "piano.range.end") {
-      displayEndMidi = parseInt(event.newValue || "84", 10);
-    }
-  });
+  const settings = getSettingsContext();
 
   // constants for SVG sizing
   const whiteWidth = $state(20);
@@ -46,12 +31,12 @@
   let displayStart = $derived.by(() =>
     midiRangeMode === "auto"
       ? Math.min(centerCMidi - 10, ...activeNotes.keys()) - 2
-      : displayStartMidi,
+      : parseInt(settings.settings["piano.range.start"].value, 10),
   );
   let displayEnd = $derived.by(() =>
     midiRangeMode === "auto"
       ? Math.max(centerCMidi + 10, ...activeNotes.keys()) + 2
-      : displayEndMidi,
+      : parseInt(settings.settings["piano.range.end"].value, 10),
   );
 
   function getPosition(midiPosition: number) {
