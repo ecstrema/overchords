@@ -98,11 +98,11 @@ export class Settings {
     "notes-to-show": {
       id: "notes-to-show",
       name: "Notes to Show",
-      description: "Number of notes to display on the piano (default: 4)",
-      defaultValue: 4,
-      value: JSON.parse(localStorage.getItem("notes-to-show") || "4"),
+      description: "Number of notes to display on the piano (default: 128)",
+      defaultValue: 128,
+      value: JSON.parse(localStorage.getItem("notes-to-show") || "128"),
       type: "number",
-      range: [1, 12],
+      range: [1, 128],
     },
     "piano.size": {
       id: "piano.size",
