@@ -84,9 +84,15 @@
     </Field.Group>
   </section>
 
-  <div class="mt-8">
-    <Button variant="default" onclick={() => getCurrentWindow().close()}>
+  <div class="mt-8 flex justify-between">
+    <Button variant="default" onclick={async () => await getCurrentWindow().close()}>
       Close
+    </Button>
+    <Button
+      variant="outline"
+      onclick={() => settings.resetToDefaults()}
+    >
+      Reset to defaults
     </Button>
   </div>
 </div>

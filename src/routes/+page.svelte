@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getContext, onMount } from "svelte";
+  import { getContext, onMount, unmount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import Piano from "../components/Piano.svelte";
@@ -14,11 +14,15 @@
 
   let activeNotes: ActiveNotes = new SvelteMap<number, NoteEvent>();
 
-  onMount(async () => {
-    // start backend thread
-    await invoke("start_audio_listening");
+  let settingsWindow: WebviewWindow | null = null;
+  let settingsWindowCloseListener: (() => void) | null = null;
 
-    const unlisten = await listen<string[]>("notes", (event) => {
+  onMount(() => {
+    // start backend thread
+    invoke("start_audio_listening");
+    let stopNotesListening: (() => void) | null = null;
+
+    listen<string[]>("notes", (event) => {
       const noteEvents = event.payload as any as NoteEvent[];
       activeNotes.clear();
       for (const n of noteEvents) {
@@ -27,21 +31,40 @@
 
       filterHarmonics(activeNotes);
       keepNLoudest(activeNotes, settings.settings["notes-to-show"].value);
+    }).then((unlisten) => {
+      stopNotesListening = unlisten
     });
 
-    return () => {
-      unlisten();
+    // unmount is not called when the window is closed
+    const cleanup = () => {
+      if (stopNotesListening) stopNotesListening();
       invoke("stop_audio_listening");
+
+      if (settingsWindowCloseListener) settingsWindowCloseListener();
+      if (settingsWindow) {
+        console.log("Closing settings window");
+        settingsWindow.close();
+      }
     };
+
+    let onWindowCloseUnlistener: (() => void) | null = null;
+    getCurrentWindow()
+      .onCloseRequested(() => {
+        if (onWindowCloseUnlistener) onWindowCloseUnlistener();
+        cleanup();
+      })
+      .then((unlisten) => {
+        onWindowCloseUnlistener = unlisten;
+      });
+
+    return cleanup;
   });
 
   const resizeToPianoSize = async (width: number, height: number) => {
     await getCurrentWindow().setSize(new LogicalSize(width, height));
   };
 
-  let settingsWindow: WebviewWindow | null = null;
-
-  function openSettings() {
+  async function openSettings() {
     if (settingsWindow) {
       settingsWindow.setFocus();
       return;
@@ -55,14 +78,18 @@
       height: 600,
       maximizable: false,
       center: true,
+      visible: false, // start hidden to avoid flicker. Plugin opener will show it once it's ready
     });
 
-    settingsWindow.onCloseRequested(() => {
-      if (settingsWindow) {
-        settingsWindow.close();
-      }
-      settingsWindow = null;
-    });
+    settingsWindowCloseListener = await settingsWindow.onCloseRequested(
+      async (e) => {
+        settingsWindow = null;
+        if (settingsWindowCloseListener) {
+          settingsWindowCloseListener();
+          settingsWindowCloseListener = null;
+        }
+      },
+    );
   }
 
   let windowFocused = $state(false);
@@ -93,7 +120,9 @@
   });
 
   $effect(() => {
-    getCurrentWindow().setIgnoreCursorEvents(!windowFocused && settings.settings["unfocused-opacity"].value === 0);
+    getCurrentWindow().setIgnoreCursorEvents(
+      !windowFocused && settings.settings["unfocused-opacity"].value === 0,
+    );
   });
 </script>
 

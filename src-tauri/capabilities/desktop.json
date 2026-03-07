@@ -11,6 +11,7 @@
   "permissions": [
     "positioner:default",
     "window-state:default",
-    "core:window:allow-set-size"
+    "core:window:allow-set-size",
+    "log:default"
   ]
 }

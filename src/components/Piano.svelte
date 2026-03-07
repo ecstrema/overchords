@@ -80,16 +80,6 @@
     (data.isSharp ? blackKeys : whiteKeys).push({ ...data, midi: i });
   }
 
-  const maxMag = $derived.by(() => {
-    let max = 0.001;
-    for (const note of activeNotes.values()) {
-      if (note.magnitude > max) {
-        max = note.magnitude;
-      }
-    }
-    return max;
-  });
-
   const noteDataToFillColor = (data: NoteData & { midi: number }) => {
     const activeNote = activeNotes.get(data.midi);
     const mag = Math.round(255 * (activeNote ? Math.min(activeNote.magnitude, 1) : 0));

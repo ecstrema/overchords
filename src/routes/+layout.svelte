@@ -32,15 +32,14 @@
 
   const computedBackground = $derived.by(() => {
     settings.settings.theme.value; // re-run when theme changes
-    return getComputedStyle(document.documentElement).getPropertyValue("--background");
+    return getComputedStyle(document.documentElement).getPropertyValue(
+      "--background",
+    );
   });
 </script>
 
 <svelte:head>
-  <meta
-    name="theme-color"
-    content={computedBackground}
-  />
+  <meta name="theme-color" content={computedBackground} />
 </svelte:head>
 
 {@render children()}

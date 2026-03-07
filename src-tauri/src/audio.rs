@@ -134,7 +134,9 @@ pub fn start_listening(app_handle: AppHandle) {
                     notes_vec[upper].magnitude += mag.val() * upper_weight;
                 }
 
-                app_handle.emit("notes", notes_vec.clone()).expect("failed to emit notes event");
+                app_handle
+                    .emit("notes", notes_vec.clone())
+                    .expect("failed to emit notes event");
             }
 
             //

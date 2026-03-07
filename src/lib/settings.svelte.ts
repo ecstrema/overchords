@@ -64,8 +64,13 @@ export class Settings {
       value: JSON.parse(localStorage.getItem("piano.range.start") || '"36"'),
       type: "select",
       options: [
-        { value: "0", label: "C0" },
-        { value: "24", label: "C1" },
+        { value: "0", label: "C-1", description: "Lowest MIDI note" },
+        { value: "12", label: "C0" },
+        {
+          value: "24",
+          label: "C1",
+          description: "Lowest C on a standard 88-key piano",
+        },
         { value: "36", label: "C2" },
         { value: "60", label: "C3" },
       ],
@@ -80,8 +85,12 @@ export class Settings {
         { value: "72", label: "C4" },
         { value: "84", label: "C5" },
         { value: "96", label: "C6" },
-        { value: "108", label: "C7" },
-        { value: "120", label: "C8" },
+        {
+          value: "108",
+          label: "C7",
+          description: "Highest C on a standard 88-key piano",
+        },
+        { value: "120", label: "C8", description: "Highest MIDI note" },
       ],
     },
     "unfocused-opacity": {
@@ -98,7 +107,8 @@ export class Settings {
     "notes-to-show": {
       id: "notes-to-show",
       name: "Notes to Show",
-      description: "Number of notes to display on the piano (default: 128)",
+      description:
+        "Number of notes to display on the piano (default: 128 - all)",
       defaultValue: 128,
       value: JSON.parse(localStorage.getItem("notes-to-show") || "128"),
       type: "number",
@@ -107,7 +117,8 @@ export class Settings {
     "piano.size": {
       id: "piano.size",
       name: "Piano Size",
-      description: "Size of the piano keys, as determined by the height of a white key (default: 20px)",
+      description:
+        "Size of the piano keys, as determined by the height of a white key (default: 20px)",
       defaultValue: 20,
       value: JSON.parse(localStorage.getItem("piano.size") || "20"),
       type: "number",
@@ -117,6 +128,11 @@ export class Settings {
 
   constructor() {
     addEventListener("storage", (event) => {
+      if (event.key === null && event.oldValue === null && event.newValue === null) {
+        // This is a clear event, reset all settings to defaults
+        this.resetToDefaults();
+        return;
+      }
       if (event.key && event.key in this.settings) {
         const key = event.key as keyof Settings["settings"];
         const setting = this.settings[key];
@@ -166,12 +182,23 @@ export class Settings {
     for (const key in this.settings) {
       const setting = this.settings[key as keyof typeof this.settings];
       $effect(() => {
+        if (setting.value === null || setting.value === undefined) {
+          return;
+        }
+        console.log(`Saving setting ${setting.id} with value ${setting.value}`);
         if (setting.value === setting.defaultValue) {
           localStorage.removeItem(setting.id);
         } else {
           localStorage.setItem(setting.id, JSON.stringify(setting.value));
         }
       });
+    }
+  }
+
+  resetToDefaults() {
+    for (const key in this.settings) {
+      const setting = this.settings[key as keyof typeof this.settings];
+      setting.value = setting.defaultValue;
     }
   }
 }

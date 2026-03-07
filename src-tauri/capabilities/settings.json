@@ -2,13 +2,16 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "settings",
   "description": "Capability for the settings window",
-  "windows": ["settings"],
+  "windows": [
+    "settings"
+  ],
   "permissions": [
     "core:default",
     "opener:default",
     "core:window:default",
     "core:window:allow-close",
     "core:window:allow-destroy",
-    "core:window:allow-hide"
+    "core:window:allow-hide",
+    "log:default"
   ]
 }
