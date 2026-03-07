@@ -26,7 +26,7 @@
   const whiteWidth = $derived.by(() => settings.settings["piano.size"].value);
   const whiteHeight = $derived.by(() => whiteWidth * 6);
   const blackWidth = $derived.by(() => whiteWidth * 0.6);
-  const blackHeight = $derived.by(() => blackWidth * 20 / 3);
+  const blackHeight = $derived.by(() => (blackWidth * 20) / 3);
 
   let displayStart = $derived.by(() =>
     midiRangeMode === "auto"
@@ -55,11 +55,12 @@
   }
 
   const svgViewStart = Tween.of<number>(() => getPosition(displayStart), {
-    duration: 100,
+    duration: 50,
     easing: quadInOut,
   });
   const svgViewEnd = Tween.of<number>(() => getEndPosition(displayEnd), {
-    duration: (from, to) => ((midiRangeMode === "range" || to > from) ? 50 : 5000),
+    duration: (from, to) =>
+      midiRangeMode === "range" || to > from ? 50 : 5000,
     easing: linear,
   });
 
@@ -80,12 +81,21 @@
     (data.isSharp ? blackKeys : whiteKeys).push({ ...data, midi: i });
   }
 
-  const noteDataToFillColor = (data: NoteData & { midi: number }) => {
-    const activeNote = activeNotes.get(data.midi);
-    const mag = Math.round(255 * (activeNote ? Math.min(activeNote.magnitude, 1) : 0));
-    const magHex = mag.toString(16).padStart(2, "0");
+  // Build two 256 length arrays of the fill and stroke colors for each magnitude level (0-255) for white and black keys, to avoid doing calculations in the render loop
+  const whiteKeyFillColors = Array.from({ length: 256 }, (_, mag) => {
     const inverseMagHex = (255 - mag).toString(16).padStart(2, "0");
-    return data.isSharp ? `#${magHex}0000` : `#ff${inverseMagHex}${inverseMagHex}`;
+    return `#ff${inverseMagHex}${inverseMagHex}`;
+  });
+  const blackKeyFillColors = Array.from({ length: 256 }, (_, mag) => {
+    return `#${mag.toString(16).padStart(2, "0")}0000`;
+  });
+
+  const getFillColor = (midi: number, isSharp: boolean) => {
+    const activeNote = activeNotes.get(midi);
+    const mag = Math.round(
+      255 * (activeNote ? Math.min(activeNote.magnitude, 1) : 0),
+    );
+    return isSharp ? blackKeyFillColors[mag] : whiteKeyFillColors[mag];
   };
 </script>
 
@@ -98,9 +108,9 @@
   {#each [...whiteKeys, ...blackKeys] as data}
     <g data-key={data.noteName}>
       <rect
+        class="key"
         data-active={activeNotes.has(data.midi)}
-        class="transition-[fill] duration-200 [data-active='true']:duration-0"
-        fill={noteDataToFillColor(data)}
+        fill={getFillColor(data.midi, data.isSharp)}
         stroke="black"
         x={getPosition(data.midi)}
         y="0"
@@ -111,3 +121,14 @@
   {/each}
   <circle cx={centerCx} cy={whiteHeight - 8} r="4" fill="#000" />
 </svg>
+
+<style>
+  /* one way transition: fill sets immediately when active, but fades out slowly when inactive */
+  /* Not sure it helps... */
+  /* .key {
+    transition: none;
+  }
+  .key[data-active="false"] {
+    transition: fill 0.1s linear;
+  } */
+</style>
