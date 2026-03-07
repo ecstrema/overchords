@@ -98,7 +98,7 @@ export class Settings {
       id: "unfocused-opacity",
       name: "Unfocused Opacity",
       description:
-        "Opacity of the main window when it's not focused (default: 50%)",
+        "Opacity of the main window when it's not focused (default: 50%). Set to 0 to hide the window when unfocused.",
       defaultValue: 50,
       value: JSON.parse(localStorage.getItem("unfocused-opacity") || "50"),
       type: "number",
