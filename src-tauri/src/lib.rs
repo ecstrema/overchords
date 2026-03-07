@@ -14,6 +14,11 @@ fn stop_audio_listening() {
     stop_listening();
 }
 
+#[tauri::command]
+fn set_notes_to_keep(n: i8) {
+    audio::set_notes_to_keep(n);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     return tauri::Builder::default()
@@ -21,6 +26,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             start_audio_listening,
             stop_audio_listening,
+            set_notes_to_keep,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

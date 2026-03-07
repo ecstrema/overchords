@@ -10,7 +10,6 @@
   import { Button } from "$lib/components/ui/button";
   import * as ButtonGroup from "$lib/components/ui/button-group";
   import { getSettingsContext } from "$lib/settings.svelte";
-  import { filterHarmonics, keepNLoudest } from "$lib/midi";
 
   let activeNotes: ActiveNotes = new SvelteMap<number, NoteEvent>();
 
@@ -28,9 +27,6 @@
       for (const n of noteEvents) {
         activeNotes.set(n.midi, n);
       }
-
-      filterHarmonics(activeNotes);
-      keepNLoudest(activeNotes, settings.settings["notes-to-show"].value);
     }).then((unlisten) => {
       stopNotesListening = unlisten
     });

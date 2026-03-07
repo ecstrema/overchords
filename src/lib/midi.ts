@@ -35,34 +35,3 @@ export function midiToData(midi: number): NoteData {
   const fullName = `${noteName}${octave}`;
   return { octave, noteName, isSharp, pianoPos, fullName };
 }
-
-export function filterHarmonics(notes: SvelteMap<number, NoteEvent>): void {
-  // iterate over notes, and check if the octave (first harmonic), the 12th (second harmonic), the 15th, the 17th, the 19th, the 21st or the 22nd are preset. Decay by the harmonic number. So the first harmonic should be deduced by half the root's magnitude, the second by a third, the third by a quarter, etc.
-
-  for (const [midi, note] of notes) {
-    const rootMagnitude = note.magnitude;
-    const harmonics = [1, 12, 19, 24, 28, 31, 34, 36];
-    for (let i = 0; i < harmonics.length; i++) {
-      const h = harmonics[i];
-      const harmonicMidi = midi + h;
-      const harmonicNote = notes.get(harmonicMidi);
-      if (harmonicNote) {
-        const expectedMagnitude = rootMagnitude / (i + 2); // decay by the harmonic number
-        harmonicNote.magnitude -= expectedMagnitude;
-        if (harmonicNote.magnitude < 0) {
-          notes.delete(harmonicMidi);
-        }
-      }
-    }
-  }
-}
-
-export function keepNLoudest(notes: SvelteMap<number, NoteEvent>, n: number): void {
-  const sortedNotes = Array.from(notes.entries()).sort((a, b) => b[1].magnitude - a[1].magnitude);
-  const valueN = sortedNotes.length > n ? sortedNotes[n - 1][1].magnitude : 0;
-  for (const midi of notes.keys()) {
-    if (notes.get(midi)!.magnitude < valueN) {
-      notes.delete(midi);
-    }
-  }
-}

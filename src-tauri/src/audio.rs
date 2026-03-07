@@ -1,6 +1,5 @@
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
+    Arc, Mutex, atomic::{AtomicBool, AtomicI8, Ordering}
 };
 use std::thread;
 
@@ -11,6 +10,7 @@ use tauri::{AppHandle, Emitter};
 use serde::Serialize;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
+static NOTES_TO_KEEP: AtomicI8 = AtomicI8::new(5);
 
 #[derive(Serialize, Debug, Clone)]
 pub struct NoteEvent {
@@ -134,8 +134,13 @@ pub fn start_listening(app_handle: AppHandle) {
                     notes_vec[upper].magnitude += mag.val() * upper_weight;
                 }
 
+                // keep only the N notes with highest magnitude, where N is set by NOTES_TO_KEEP
+                let n = NOTES_TO_KEEP.load(Ordering::SeqCst) as usize;
+                notes_vec.sort_by(|a, b| b.magnitude.partial_cmp(&a.magnitude).unwrap());
+                notes_vec.truncate(n);
+
                 app_handle
-                    .emit("notes", notes_vec.clone())
+                    .emit("notes", notes_vec)
                     .expect("failed to emit notes event");
             }
 
@@ -149,4 +154,29 @@ pub fn start_listening(app_handle: AppHandle) {
 /// Signal the capturing thread to stop. Returns immediately.
 pub fn stop_listening() {
     RUNNING.store(false, Ordering::SeqCst);
+}
+
+pub fn set_notes_to_keep(n: i8) {
+    NOTES_TO_KEEP.store(n, Ordering::SeqCst);
+}
+
+fn apply_hps(spectrum: &[f32], harmonics_to_check: usize) -> Vec<f32> {
+    let mut hps_spectrum = spectrum.to_vec();
+    let len = spectrum.len();
+
+    // We multiply the original spectrum by downsampled versions of itself
+    for i in 2..=harmonics_to_check {
+        for j in 0..(len / i) {
+            // Multiply the fundamental bin by its i-th harmonic bin
+            hps_spectrum[j] *= spectrum[j * i];
+        }
+
+        // Zero out the end of the spectrum that we can't downsample anymore
+        for j in (len / i)..len {
+            hps_spectrum[j] = 0.0;
+        }
+    }
+
+    // Squaring or taking the root can help with contrast
+    hps_spectrum.iter().map(|&v| v.sqrt()).collect()
 }

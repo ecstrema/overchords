@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getContext } from "svelte";
 
 export interface SettingBase<T> {
@@ -127,8 +128,20 @@ export class Settings {
   });
 
   constructor() {
+    $effect(() => {
+      invoke("set_notes_to_keep", {
+        n: this.settings["notes-to-show"].value,
+      }).catch((err) => {
+        console.error("Failed to set notes to keep:", err);
+      });
+    });
+
     addEventListener("storage", (event) => {
-      if (event.key === null && event.oldValue === null && event.newValue === null) {
+      if (
+        event.key === null &&
+        event.oldValue === null &&
+        event.newValue === null
+      ) {
         // This is a clear event, reset all settings to defaults
         this.resetToDefaults();
         return;
