@@ -20,6 +20,11 @@
   };
 </script>
 
+<svelte:head>
+  <title>Overchords - Settings</title>
+  <meta name="description" content="Configure your Overchords settings" />
+</svelte:head>
+
 <div class="w-full max-w-md p-4 mx-auto">
   <h1 class="text-2xl font-bold mb-4">Settings</h1>
 

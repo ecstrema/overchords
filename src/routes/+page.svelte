@@ -121,6 +121,11 @@
   });
 </script>
 
+<svelte:head>
+  <title>Overchords</title>
+  <meta name="description" content="A piano visualizer for your MIDI input" />
+</svelte:head>
+
 <div class="hover:opacity-100 transition-opacity duration-200" style:opacity>
   <ButtonGroup.Root
     orientation="vertical"
