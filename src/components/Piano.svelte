@@ -99,7 +99,7 @@
     <g data-key={data.noteName}>
       <rect
         data-active={activeNotes.has(data.midi)}
-        class="key"
+        class="transition-[fill] duration-200 [data-active='true']:duration-0"
         fill={noteDataToFillColor(data)}
         stroke="black"
         x={getPosition(data.midi)}
@@ -111,14 +111,3 @@
   {/each}
   <circle cx={centerCx} cy={whiteHeight - 8} r="4" fill="#000" />
 </svg>
-
-<style>
-  /* one way transition */
-  .key {
-    transition: fill 0.2s;
-  }
-
-  .key[data-active="true"] {
-    transition: fill 0s;
-  }
-</style>

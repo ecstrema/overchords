@@ -17,10 +17,7 @@ fn stop_audio_listening() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     return tauri::Builder::default()
-        .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(tauri_plugin_positioner::init())
-        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             start_audio_listening,
             stop_audio_listening,

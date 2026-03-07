@@ -9,9 +9,7 @@
     "main"
   ],
   "permissions": [
-    "positioner:default",
     "window-state:default",
-    "core:window:allow-set-size",
-    "log:default"
+    "core:window:allow-set-size"
   ]
 }

@@ -42,7 +42,6 @@
 
       if (settingsWindowCloseListener) settingsWindowCloseListener();
       if (settingsWindow) {
-        console.log("Closing settings window");
         settingsWindow.close();
       }
     };
@@ -78,7 +77,7 @@
       height: 600,
       maximizable: false,
       center: true,
-      visible: false, // start hidden to avoid flicker. Plugin opener will show it once it's ready
+      visible: false, // start hidden to avoid flicker. Plugin window-state will show it once it's ready
     });
 
     settingsWindowCloseListener = await settingsWindow.onCloseRequested(

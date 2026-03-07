@@ -7,16 +7,14 @@
   ],
   "permissions": [
     "core:default",
-    "opener:default",
+    "core:webview:allow-create-webview-window",
     "core:window:default",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
-    "core:webview:allow-create-webview-window",
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-set-focus",
     "core:window:allow-destroy",
-    "core:window:allow-set-ignore-cursor-events",
-    "log:default"
+    "core:window:allow-set-ignore-cursor-events"
   ]
 }

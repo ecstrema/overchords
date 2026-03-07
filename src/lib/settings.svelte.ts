@@ -185,7 +185,6 @@ export class Settings {
         if (setting.value === null || setting.value === undefined) {
           return;
         }
-        console.log(`Saving setting ${setting.id} with value ${setting.value}`);
         if (setting.value === setting.defaultValue) {
           localStorage.removeItem(setting.id);
         } else {
