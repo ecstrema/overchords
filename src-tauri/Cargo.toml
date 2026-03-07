@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A Tauri App"
 authors = ["ecstrema"]
 edition = "2021"
+default-run = "overchords"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,10 +23,57 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 cpal = "0.17.3"
-spectrum-analyzer = "1.7.0"
+cqt-rs = "0.1.0"
+rustfft = "6"
+
+[[bin]]
+name = "bench_audio"
+path = "src/bin/bench_audio.rs"
+
+[profile.bench-fast]
+inherits = "dev"
+opt-level = 3
+debug = false
 
 [profile.dev]
 incremental = true # Compile your binary in smaller steps.
+
+# Keep hot numeric crates optimised even in `bun tauri dev` (debug) builds.
+# Without this, cqt.process takes ~107 ms/call (2× over budget); with it ~4 ms.
+[profile.dev.package.cqt-rs]
+opt-level = 3
+[profile.dev.package.hann-rs]
+opt-level = 3
+[profile.dev.package.ndarray]
+opt-level = 3
+[profile.dev.package.matrixmultiply]
+opt-level = 3
+[profile.dev.package.rawpointer]
+opt-level = 3
+[profile.dev.package.rustfft]
+opt-level = 3
+[profile.dev.package.num-complex]
+opt-level = 3
+[profile.dev.package.num-integer]
+opt-level = 3
+[profile.dev.package.num-traits]
+opt-level = 3
+[profile.dev.package.primal-check]
+opt-level = 3
+[profile.dev.package.strength_reduce]
+opt-level = 3
+[profile.dev.package.transpose]
+opt-level = 3
+[profile.dev.package.rayon]
+opt-level = 3
+[profile.dev.package.rayon-core]
+opt-level = 3
+[profile.dev.package.crossbeam-deque]
+opt-level = 3
+[profile.dev.package.crossbeam-epoch]
+opt-level = 3
+[profile.dev.package.crossbeam-utils]
+opt-level = 3
 
 [profile.release]
 codegen-units = 1 # Allows LLVM to perform better optimization.
