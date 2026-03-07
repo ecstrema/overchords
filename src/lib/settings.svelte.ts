@@ -61,8 +61,8 @@ export class Settings {
     "piano.range.start": {
       id: "piano.range.start",
       name: "Piano Range Start",
-      defaultValue: "36",
-      value: JSON.parse(localStorage.getItem("piano.range.start") || '"36"'),
+      defaultValue: "24",
+      value: JSON.parse(localStorage.getItem("piano.range.start") || '"24"'),
       type: "select",
       options: [
         { value: "0", label: "C-1", description: "Lowest MIDI note" },
@@ -98,9 +98,9 @@ export class Settings {
       id: "unfocused-opacity",
       name: "Unfocused Opacity",
       description:
-        "Opacity of the main window when it's not focused (default: 50%). Set to 0 to hide the window when unfocused.",
-      defaultValue: 50,
-      value: JSON.parse(localStorage.getItem("unfocused-opacity") || "50"),
+        "Opacity of the main window when it's not focused (default: 100%). Set to 0 to hide the window when unfocused.",
+      defaultValue: 100,
+      value: JSON.parse(localStorage.getItem("unfocused-opacity") || "100"),
       type: "number",
       range: [0, 100],
       step: 5,
@@ -109,11 +109,11 @@ export class Settings {
       id: "notes-to-show",
       name: "Notes to Show",
       description:
-        "Number of notes to display on the piano (default: 128 - all)",
-      defaultValue: 128,
-      value: JSON.parse(localStorage.getItem("notes-to-show") || "128"),
+        "Number of notes to display on the piano (default: 127 - all)",
+      defaultValue: 127,
+      value: JSON.parse(localStorage.getItem("notes-to-show") || "127"),
       type: "number",
-      range: [1, 128],
+      range: [1, 127],
     },
     "piano.size": {
       id: "piano.size",
