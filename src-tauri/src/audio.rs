@@ -100,9 +100,12 @@ pub fn start_listening(app_handle: AppHandle) {
 
         stream.play().expect("failed to play stream");
 
+        // Target 30 Hz → one frame every ~33.3 ms.
+        let frame_interval = std::time::Duration::from_secs_f64(1.0 / 30.0);
+
         // ── Analysis loop ──────────────────────────────────────────────────────
         while RUNNING.load(Ordering::SeqCst) {
-            std::thread::sleep(std::time::Duration::from_millis(50));
+            let tick_start = std::time::Instant::now();
 
             // Drain a HOP_SIZE-aligned chunk once we have at least WINDOW_LENGTH samples.
             let audio_samples: Vec<f32> = {
@@ -115,71 +118,95 @@ pub fn start_listening(app_handle: AppHandle) {
                 }
             };
 
-            if audio_samples.is_empty() {
-                continue;
-            }
-
-            // Run CQT → Array2<f32> with shape (num_frames, num_bins).
-            let cqt_matrix = match cqt.process(&audio_samples, HOP_SIZE) {
-                Ok(m) => m,
-                Err(e) => {
-                    eprintln!("CQT error: {:?}", e);
-                    continue;
+            'process: {
+                if audio_samples.is_empty() {
+                    break 'process;
                 }
-            };
 
-            let (num_frames, _) = cqt_matrix.dim();
-            if num_frames == 0 {
-                continue;
-            }
+                // Run CQT → Array2<f32> with shape (num_frames, num_bins).
+                let cqt_matrix = match cqt.process(&audio_samples, HOP_SIZE) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        eprintln!("CQT error: {:?}", e);
+                        break 'process;
+                    }
+                };
 
-            // Average magnitudes across frames.
-            let mut bin_magnitudes = vec![0.0f32; num_bins];
-            for frame_idx in 0..num_frames {
-                let row = cqt_matrix.row(frame_idx);
-                for (bin, &mag) in row.iter().enumerate() {
-                    if bin < num_bins {
-                        bin_magnitudes[bin] += mag;
+                let (num_frames, _) = cqt_matrix.dim();
+                if num_frames == 0 {
+                    break 'process;
+                }
+
+                // Average magnitudes across frames.
+                let mut bin_magnitudes = vec![0.0f32; num_bins];
+                for frame_idx in 0..num_frames {
+                    let row = cqt_matrix.row(frame_idx);
+                    for (bin, &mag) in row.iter().enumerate() {
+                        if bin < num_bins {
+                            bin_magnitudes[bin] += mag;
+                        }
                     }
                 }
+                for v in bin_magnitudes.iter_mut() {
+                    *v /= num_frames as f32;
+                }
+
+                // Apply HPS in the log-frequency (semitone) domain.
+                let hps_mags = apply_hps_cqt(&bin_magnitudes, 2);
+
+                // Normalise to [0, 1] relative to the peak bin so that multiple
+                // simultaneously active notes all score proportionally rather than
+                // being crushed by the absolute scale of the magnitudes.
+                let peak = hps_mags.iter().fold(0.0f32, |a, &b| a.max(b));
+                if peak == 0.0 {
+                    break 'process;
+                }
+                let hps_norm: Vec<f32> = hps_mags.iter().map(|&v| v / peak).collect();
+
+                // Build note events for bins above the relative threshold, then
+                // keep only the top-N strongest ones.
+                let mut notes_vec: Vec<NoteEvent> = hps_norm
+                    .iter()
+                    .enumerate()
+                    .filter(|&(_, &mag)| mag >= RELATIVE_THRESHOLD)
+                    .map(|(bin, &magnitude)| {
+                        let midi = MIDI_OFFSET.saturating_add(bin as u8);
+                        let frequency =
+                            CQT_MIN_FREQ * 2f32.powf(bin as f32 / BINS_PER_OCTAVE as f32);
+                        NoteEvent { midi, frequency, magnitude }
+                    })
+                    .collect();
+
+                let n = NOTES_TO_KEEP.load(Ordering::SeqCst) as usize;
+                notes_vec.sort_by(|a, b| b.magnitude.partial_cmp(&a.magnitude).unwrap());
+                notes_vec.truncate(n);
+
+                app_handle
+                    .emit("notes", notes_vec)
+                    .expect("failed to emit notes event");
             }
-            for v in bin_magnitudes.iter_mut() {
-                *v /= num_frames as f32;
+
+            // Sleep for whatever remains of the 33.3 ms frame budget so that
+            // every code path — including early exits — holds the 30 Hz cadence.
+            if let Some(remaining) = frame_interval.checked_sub(tick_start.elapsed()) {
+                if remaining >= std::time::Duration::from_millis(5) {
+                    println!(
+                        "Tick completed in {:.2?}, sleeping for {:.2?}",
+                        tick_start.elapsed(),
+                        remaining
+                    );
+                }
+                std::thread::sleep(remaining);
+            } else {
+                // We're running behind schedule (e.g. due to a long CQT process call).
+                // In this case we should skip sleeping to catch up, but this also
+                // means the next tick will start late and may have less time to do
+                // its work before the following tick is scheduled to start.
+                println!(
+                    "Warning: audio processing is running {:.2?} behind schedule",
+                    tick_start.elapsed() - frame_interval
+                );
             }
-
-            // Apply HPS in the log-frequency (semitone) domain.
-            let hps_mags = apply_hps_cqt(&bin_magnitudes, 3);
-
-            // Normalise to [0, 1] relative to the peak bin so that multiple
-            // simultaneously active notes all score proportionally rather than
-            // being crushed by the absolute scale of the magnitudes.
-            let peak = hps_mags.iter().fold(0.0f32, |a, &b| a.max(b));
-            if peak == 0.0 {
-                continue;
-            }
-            let hps_norm: Vec<f32> = hps_mags.iter().map(|&v| v / peak).collect();
-
-            // Build note events for bins above the relative threshold, then
-            // keep only the top-N strongest ones.
-            let mut notes_vec: Vec<NoteEvent> = hps_norm
-                .iter()
-                .enumerate()
-                .filter(|&(_, &mag)| mag >= RELATIVE_THRESHOLD)
-                .map(|(bin, &magnitude)| {
-                    let midi = MIDI_OFFSET.saturating_add(bin as u8);
-                    let frequency =
-                        CQT_MIN_FREQ * 2f32.powf(bin as f32 / BINS_PER_OCTAVE as f32);
-                    NoteEvent { midi, frequency, magnitude }
-                })
-                .collect();
-
-            let n = NOTES_TO_KEEP.load(Ordering::SeqCst) as usize;
-            notes_vec.sort_by(|a, b| b.magnitude.partial_cmp(&a.magnitude).unwrap());
-            notes_vec.truncate(n);
-
-            app_handle
-                .emit("notes", notes_vec)
-                .expect("failed to emit notes event");
         }
 
         // dropping `stream` stops capture automatically

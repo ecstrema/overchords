@@ -39,7 +39,7 @@ debug = false
 incremental = true # Compile your binary in smaller steps.
 
 # Keep hot numeric crates optimised even in `bun tauri dev` (debug) builds.
-# Without this, cqt.process takes ~107 ms/call (2× over budget); with it ~4 ms.
+# Without this, cqt.process takes ~107 ms/call (3× over budget); with it ~4 ms.
 [profile.dev.package.cqt-rs]
 opt-level = 3
 [profile.dev.package.hann-rs]
