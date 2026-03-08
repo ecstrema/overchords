@@ -28,7 +28,12 @@ export interface NumberSetting extends SettingBase<number> {
   step?: number;
 }
 
-export type Setting = SelectSetting | NumberSetting;
+export interface BooleanSetting extends SettingBase<boolean> {
+  type: "boolean";
+  value: boolean;
+}
+
+export type Setting = SelectSetting | NumberSetting | BooleanSetting;
 
 export type AllSettings = {
   theme: SelectSetting;
@@ -37,6 +42,8 @@ export type AllSettings = {
   "piano.size": NumberSetting;
   "unfocused-opacity": NumberSetting;
   "notes-to-show": NumberSetting;
+  "hps-enabled": BooleanSetting;
+  "normalize-to-observed": BooleanSetting;
 };
 
 export class Settings {
@@ -125,6 +132,26 @@ export class Settings {
       type: "number",
       range: [14, 100],
     },
+    "hps-enabled": {
+      id: "hps-enabled",
+      name: "Harmonic Product Spectrum (HPS)",
+      description:
+        "Improves pitch detection by multiplying the spectrum with downsampled copies. Disable if high notes feel suppressed.",
+      advanced: true,
+      defaultValue: true,
+      value: JSON.parse(localStorage.getItem("hps-enabled") ?? "true"),
+      type: "boolean",
+    },
+    "normalize-to-observed": {
+      id: "normalize-to-observed",
+      name: "Normalize to observed peak",
+      description:
+        "When enabled, each frame is normalized to its own loudest note so the range is always fully used. When disabled, magnitudes are normalized to the long-term peak so quieter notes genuinely appear quieter.",
+      advanced: true,
+      defaultValue: true,
+      value: JSON.parse(localStorage.getItem("normalize-to-observed") ?? "true"),
+      type: "boolean",
+    },
   });
 
   constructor() {
@@ -133,6 +160,22 @@ export class Settings {
         n: this.settings["notes-to-show"].value,
       }).catch((err) => {
         console.error("Failed to set notes to keep:", err);
+      });
+    });
+
+    $effect(() => {
+      invoke("set_hps_enabled", {
+        enabled: this.settings["hps-enabled"].value,
+      }).catch((err) => {
+        console.error("Failed to set HPS enabled:", err);
+      });
+    });
+
+    $effect(() => {
+      invoke("set_normalize_to_observed", {
+        enabled: this.settings["normalize-to-observed"].value,
+      }).catch((err) => {
+        console.error("Failed to set normalization mode:", err);
       });
     });
 
@@ -187,6 +230,12 @@ export class Settings {
             } else {
               setting.value = setting.defaultValue;
             }
+            break;
+          case "boolean":
+            setting.value =
+              typeof parsedValue === "boolean"
+                ? parsedValue
+                : setting.defaultValue;
             break;
         }
       }

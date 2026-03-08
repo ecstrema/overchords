@@ -19,6 +19,16 @@ fn set_notes_to_keep(n: i8) {
     audio::set_notes_to_keep(n);
 }
 
+#[tauri::command]
+fn set_hps_enabled(enabled: bool) {
+    audio::set_hps_enabled(enabled);
+}
+
+#[tauri::command]
+fn set_normalize_to_observed(enabled: bool) {
+    audio::set_normalize_to_observed(enabled);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     return tauri::Builder::default()
@@ -27,6 +37,8 @@ pub fn run() {
             start_audio_listening,
             stop_audio_listening,
             set_notes_to_keep,
+            set_hps_enabled,
+            set_normalize_to_observed,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

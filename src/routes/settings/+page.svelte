@@ -5,7 +5,9 @@
   import * as Select from "$lib/components/ui/select";
   import Separator from "$lib/components/ui/separator/separator.svelte";
   import { Input } from "$lib/components/ui/input";
+  import { Checkbox } from "$lib/components/ui/checkbox";
   import { getSettingsContext } from "$lib/settings.svelte";
+  import { dev } from '$app/environment';
 
   const settings = getSettingsContext();
 
@@ -31,8 +33,8 @@
   <section>
     <Field.Group>
       {#each Object.values(settings.settings) as setting (setting.id)}
-        {#if !setting.advanced}
-          <Field.Field>
+        {#if !setting.advanced || dev} <!-- Hide advanced settings in production -->
+          <Field.Field orientation={setting.type === "boolean" ? "horizontal" : "vertical"}>
             <Field.Content>
               <Field.Label for={`setting-${setting.id}`}>
                 {setting.name}
@@ -81,6 +83,11 @@
                 step={setting.step || 1}
                 bind:value={setting.value}
                 class="w-full"
+              />
+            {:else if setting.type === "boolean"}
+              <Checkbox
+                id={`setting-${setting.id}`}
+                bind:checked={setting.value}
               />
             {/if}
           </Field.Field>

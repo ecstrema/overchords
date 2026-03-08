@@ -1,5 +1,5 @@
 use std::sync::{
-    Arc, Mutex, atomic::{AtomicBool, AtomicI8, Ordering}
+    Arc, Mutex, atomic::{AtomicBool, AtomicI8, AtomicU32, Ordering}
 };
 use std::thread;
 
@@ -11,6 +11,14 @@ use serde::Serialize;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 static NOTES_TO_KEEP: AtomicI8 = AtomicI8::new(5);
+static HPS_ENABLED: AtomicBool = AtomicBool::new(true);
+/// When true (default) normalise per-frame to the observed peak.
+/// When false, normalise to the long-term peak (slow-decaying maximum),
+/// preserving absolute loudness differences between notes.
+static NORMALIZE_TO_OBSERVED: AtomicBool = AtomicBool::new(true);
+/// Long-term peak magnitude stored as f32 bits.  Pre-seeded to 1.0 so
+/// division is safe before any audio has been processed.
+static LONG_TERM_PEAK: AtomicU32 = AtomicU32::new(0x3F800000); // 1.0f32 bits
 
 // ── CQT configuration ─────────────────────────────────────────────────────────
 /// Lowest analysed frequency: C-1 (MIDI 0). 440 × 2^(−69/12) ≈ 8.176 Hz.
@@ -151,17 +159,35 @@ pub fn start_listening(app_handle: AppHandle) {
                     *v /= num_frames as f32;
                 }
 
-                // Apply HPS in the log-frequency (semitone) domain.
-                let hps_mags = apply_hps_cqt(&bin_magnitudes, 2);
+                // Apply HPS in the log-frequency (semitone) domain (when enabled).
+                let hps_mags = if HPS_ENABLED.load(Ordering::Relaxed) {
+                    apply_hps_cqt(&bin_magnitudes, 2)
+                } else {
+                    bin_magnitudes
+                };
 
-                // Normalise to [0, 1] relative to the peak bin so that multiple
-                // simultaneously active notes all score proportionally rather than
-                // being crushed by the absolute scale of the magnitudes.
-                let peak = hps_mags.iter().fold(0.0f32, |a, &b| a.max(b));
-                if peak == 0.0 {
+                // Maintain a long-term peak with slow exponential decay (~46 s
+                // half-life at 30 Hz) so we always have a stable reference.
+                // This thread is the sole writer, so no CAS loop is needed.
+                let frame_peak = hps_mags.iter().fold(0.0f32, |a, &b| a.max(b));
+                if frame_peak == 0.0 {
                     break 'process;
                 }
-                let hps_norm: Vec<f32> = hps_mags.iter().map(|&v| v / peak).collect();
+                let stored = f32::from_bits(LONG_TERM_PEAK.load(Ordering::Relaxed));
+                let long_term = (stored * 0.99_f32).max(frame_peak);
+                LONG_TERM_PEAK.store(long_term.to_bits(), Ordering::Relaxed);
+
+                // When normalising to observed: every frame fills [0, 1], so
+                // the loudest note always reads 1.0.  When normalising to the
+                // long-term peak: quieter notes stay quieter — their magnitude
+                // reflects actual loudness relative to the historical maximum.
+                let normalizer = if NORMALIZE_TO_OBSERVED.load(Ordering::Relaxed) {
+                    frame_peak
+                } else {
+                    long_term
+                };
+                let hps_norm: Vec<f32> =
+                    hps_mags.iter().map(|&v| (v / normalizer).min(1.0)).collect();
 
                 // Build note events for bins above the relative threshold, then
                 // keep only the top-N strongest ones.
@@ -189,13 +215,6 @@ pub fn start_listening(app_handle: AppHandle) {
             // Sleep for whatever remains of the 33.3 ms frame budget so that
             // every code path — including early exits — holds the 30 Hz cadence.
             if let Some(remaining) = frame_interval.checked_sub(tick_start.elapsed()) {
-                if remaining >= std::time::Duration::from_millis(5) {
-                    println!(
-                        "Tick completed in {:.2?}, sleeping for {:.2?}",
-                        tick_start.elapsed(),
-                        remaining
-                    );
-                }
                 std::thread::sleep(remaining);
             } else {
                 // We're running behind schedule (e.g. due to a long CQT process call).
@@ -220,6 +239,14 @@ pub fn stop_listening() {
 
 pub fn set_notes_to_keep(n: i8) {
     NOTES_TO_KEEP.store(n, Ordering::SeqCst);
+}
+
+pub fn set_hps_enabled(enabled: bool) {
+    HPS_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+pub fn set_normalize_to_observed(enabled: bool) {
+    NORMALIZE_TO_OBSERVED.store(enabled, Ordering::Relaxed);
 }
 
 /// Apply Harmonic Product Spectrum in CQT (log-frequency / semitone) space.
