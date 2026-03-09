@@ -62,7 +62,6 @@ def _greedy_match(
     Returns:
         (tp, fp, fn)
     """
-    print(f"Matching detected {detected} to expected {expected}")
     remaining = list(expected)
     tp = 0
     for det in detected:

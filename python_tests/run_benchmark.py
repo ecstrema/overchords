@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
 
 from generate_midi import generate_midi
@@ -99,8 +98,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--soundfont", "-sf",
         metavar="PATH",
-        help="Path to a .sf2 soundfont for FluidSynth synthesis (required unless "
-             "--list-algorithms is used).",
+        default="soundfonts/MS_Basic.sf3",
+        help="Path to a soundfont for FluidSynth synthesis "
+             "(default: soundfonts/MS_Basic.sf3).",
     )
     p.add_argument(
         "--output-dir", "-o",
@@ -108,11 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="Directory for generated MIDI and WAV files (default: benchmark_output).",
     )
-    p.add_argument(
-        "--keep",
-        action="store_true",
-        help="Keep the generated MIDI / WAV files after the benchmark finishes.",
-    )
+
     p.add_argument(
         "--tolerance",
         type=int,
@@ -147,10 +143,6 @@ def main() -> None:
         print()
         return
 
-    # ── Validate soundfont argument ───────────────────────────────────────────
-    if not args.soundfont:
-        print("error: --soundfont is required. See --help for usage.", file=sys.stderr)
-        sys.exit(1)
 
     # ── Apply test-case filter ────────────────────────────────────────────────
     test_cases = TEST_CASES
@@ -186,14 +178,17 @@ def main() -> None:
         prefix = f"[{i:>3}/{len(test_cases)}] {test_case.name}"
         print(f"{prefix:<45}", end="", flush=True)
 
-        midi_path = generate_midi(test_case, midi_dir)
+        midi_path = os.path.join(midi_dir, f"{test_case.name}.mid")
+        if not os.path.isfile(midi_path):
+            midi_path = generate_midi(test_case, midi_dir)
 
         wav_path = os.path.join(wav_dir, f"{test_case.name}.wav")
-        try:
-            synthesize(midi_path, wav_path, args.soundfont)
-        except Exception as exc:
-            print(f"\n  ERROR during synthesis: {exc}", file=sys.stderr)
-            sys.exit(1)
+        if not os.path.isfile(wav_path):
+            try:
+                synthesize(midi_path, wav_path, args.soundfont)
+            except Exception as exc:
+                print(f"\n  ERROR during synthesis: {exc}", file=sys.stderr)
+                sys.exit(1)
 
         for algo in ALGORITHMS:
             result = evaluate(algo, test_case, wav_path, tolerance=args.tolerance)
@@ -206,12 +201,7 @@ def main() -> None:
     # ── Report ────────────────────────────────────────────────────────────────
     print_report(results)
 
-    # ── Cleanup ───────────────────────────────────────────────────────────────
-    if not args.keep:
-        shutil.rmtree(args.output_dir, ignore_errors=True)
-        print(f"Cleaned up {args.output_dir!r}.")
-    else:
-        print(f"Files kept in {args.output_dir!r}.")
+    print(f"Files kept in {args.output_dir!r}.")
 
 
 if __name__ == "__main__":
