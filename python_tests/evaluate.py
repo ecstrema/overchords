@@ -6,9 +6,15 @@ and expected notes with a configurable semitone tolerance.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 
 import numpy as np
+
+#: Audio is sliced into non-overlapping blocks of this many samples before
+#: being passed to :meth:`~algorithms.base.DetectorAlgorithm.detect`, mirroring
+#: the 4096-sample FFT blocks used by the Rust backend.
+CHUNK_SIZE: int = 4096
 
 try:
     import librosa
@@ -89,6 +95,12 @@ def load_audio(wav_path: str) -> tuple[np.ndarray, int]:
     return audio, sr
 
 
+def _split_chunks(audio: np.ndarray) -> list[np.ndarray]:
+    """Return a list of complete CHUNK_SIZE-sample slices (trailing samples discarded)."""
+    n_chunks = len(audio) // CHUNK_SIZE
+    return [audio[i * CHUNK_SIZE : (i + 1) * CHUNK_SIZE] for i in range(n_chunks)]
+
+
 def evaluate(
     algorithm: DetectorAlgorithm,
     test_case: TestCase,
@@ -110,7 +122,20 @@ def evaluate(
         Semitone tolerance for matching (default 1).
     """
     audio, sr = load_audio(wav_path)
-    detected: list[int] = algorithm.detect(audio, sr)
+
+    chunks = _split_chunks(audio)
+    if chunks:
+        # Call detect() once per CHUNK_SIZE-sample block, then majority-vote.
+        vote: dict[int, int] = defaultdict(int)
+        for chunk in chunks:
+            for note in algorithm.detect(chunk, sr):
+                vote[note] += 1
+        threshold = len(chunks) / 2
+        detected: list[int] = sorted(note for note, count in vote.items() if count > threshold)
+    else:
+        # Audio shorter than one chunk – fall back to processing in full.
+        detected = sorted(algorithm.detect(audio, sr))
+
     expected: list[int] = test_case.notes
 
     tp, fp, fn = _greedy_match(detected, expected, tolerance)

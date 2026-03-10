@@ -25,10 +25,12 @@ class DetectorAlgorithm(ABC):
 
         Args:
             audio:       Mono float32 audio samples in [-1, 1].
+                         The benchmark always passes exactly 4096 samples
+                         (one block), mirroring the Rust backend.
             sample_rate: Sample rate of *audio* in Hz.
 
         Returns:
-            A list of MIDI note numbers (0–127).  The list may be empty.
+            A list of MIDI note numbers (0-127).  The list may be empty.
             Duplicates should not be returned.
         """
 
