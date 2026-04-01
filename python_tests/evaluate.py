@@ -11,9 +11,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-#: Audio is sliced into non-overlapping blocks of this many samples before
-#: being passed to :meth:`~algorithms.base.DetectorAlgorithm.detect`, mirroring
-#: the 4096-sample FFT blocks used by the Rust backend.
+#: Audio is sliced into non-overlapping 4096-sample blocks before being passed
+#: to :meth:`~algorithms.base.DetectorAlgorithm.detect`, mirroring how the Rust
+#: backend feeds the ring-buffer one HOP_SIZE-aligned chunk at a time.
 CHUNK_SIZE: int = 4096
 
 try:
@@ -37,12 +37,16 @@ class EvaluationResult:
 
     test_case: TestCase
     algorithm_name: str
-    detected: list[int]   # detected MIDI notes, sorted
-    expected: list[int]   # ground-truth MIDI notes, sorted
+    note_scores: dict[int, float]  # MIDI note → fraction of chunks it was detected in (>0)
+    detected: list[int]            # sorted(note_scores.keys())
+    expected: list[int]            # ground-truth MIDI notes, sorted
 
-    tp: int               # true positives
-    fp: int               # false positives (spurious detections)
-    fn: int               # false negatives (missed notes)
+    # Soft metrics: TP/FP/FN are weighted by detection fractions, so they are
+    # real-valued in [0, n_notes].  A note detected in 80% of chunks contributes
+    # 0.8 to TP (or FP) rather than the binary 0/1 of a hard threshold.
+    tp: float   # sum of detection fractions for correctly matched notes
+    fp: float   # sum of detection fractions for spurious (unmatched) notes
+    fn: float   # n_expected − tp  (captures partial / missing detections)
 
     precision: float
     recall: float
@@ -50,27 +54,32 @@ class EvaluationResult:
 
     @property
     def perfect(self) -> bool:
-        """True when every expected note is detected and nothing spurious."""
-        return self.tp == len(self.expected) and self.fp == 0
+        """True when every expected note was detected in every chunk and nothing spurious."""
+        return self.fn < 1e-9 and self.fp < 1e-9
 
 
-def _greedy_match(
-    detected: list[int],
+def _soft_greedy_match(
+    note_scores: dict[int, float],
     expected: list[int],
     tolerance: int,
-) -> tuple[int, int, int]:
-    """Greedy TP / FP / FN matching with semitone tolerance.
+) -> tuple[float, float, float]:
+    """Soft TP / FP / FN matching weighted by per-note detection fractions.
 
-    Each expected note can only be matched once.  For each detected note we
-    find the closest unmatched expected note within ±*tolerance* semitones
-    and claim it as a true positive.
+    Each detected note carries a score in (0, 1] equal to the fraction of
+    chunks in which the algorithm reported it.  Greedy nearest-neighbour
+    matching (same as before) assigns each detected note to an expected note
+    within ±*tolerance* semitones; the matched score accumulates into soft_tp.
+    Unmatched detected scores sum into soft_fp, and the shortfall against the
+    expected count becomes soft_fn.
 
     Returns:
-        (tp, fp, fn)
+        (soft_tp, soft_fp, soft_fn)
     """
     remaining = list(expected)
-    tp = 0
-    for det in detected:
+    matched: set[int] = set()
+    soft_tp = 0.0
+
+    for det, score in sorted(note_scores.items()):
         best_idx: int | None = None
         best_dist = tolerance + 1
         for idx, exp in enumerate(remaining):
@@ -79,12 +88,13 @@ def _greedy_match(
                 best_dist = dist
                 best_idx = idx
         if best_idx is not None:
-            tp += 1
+            soft_tp += score
             remaining.pop(best_idx)
+            matched.add(det)
 
-    fp = len(detected) - tp
-    fn = len(expected) - tp
-    return tp, fp, fn
+    soft_fp = sum(score for note, score in note_scores.items() if note not in matched)
+    soft_fn = len(expected) - soft_tp
+    return soft_tp, soft_fp, soft_fn
 
 
 def load_audio(wav_path: str) -> tuple[np.ndarray, int]:
@@ -96,7 +106,7 @@ def load_audio(wav_path: str) -> tuple[np.ndarray, int]:
 
 
 def _split_chunks(audio: np.ndarray) -> list[np.ndarray]:
-    """Return a list of complete CHUNK_SIZE-sample slices (trailing samples discarded)."""
+    """Return non-overlapping CHUNK_SIZE-sample slices (trailing samples discarded)."""
     n_chunks = len(audio) // CHUNK_SIZE
     return [audio[i * CHUNK_SIZE : (i + 1) * CHUNK_SIZE] for i in range(n_chunks)]
 
@@ -124,21 +134,26 @@ def evaluate(
     audio, sr = load_audio(wav_path)
 
     chunks = _split_chunks(audio)
+    note_counts: dict[int, int] = defaultdict(int)
     if chunks:
-        # Call detect() once per CHUNK_SIZE-sample block, then majority-vote.
-        vote: dict[int, int] = defaultdict(int)
+        # Simulate real-time: call detect() once per 4096-sample chunk and
+        # accumulate how many chunks each note was detected in.
         for chunk in chunks:
             for note in algorithm.detect(chunk, sr):
-                vote[note] += 1
-        threshold = len(chunks) / 2
-        detected: list[int] = sorted(note for note, count in vote.items() if count > threshold)
+                note_counts[note] += 1
     else:
-        # Audio shorter than one chunk – fall back to processing in full.
-        detected = sorted(algorithm.detect(audio, sr))
+        # Clip shorter than one chunk – process in full, score as 1.0 or 0.
+        for note in algorithm.detect(audio, sr):
+            note_counts[note] = 1
+
+    n_chunks = max(len(chunks), 1)
+    # Detection fraction for every note that appeared in at least one chunk.
+    note_scores: dict[int, float] = {note: count / n_chunks for note, count in note_counts.items()}
 
     expected: list[int] = test_case.notes
+    detected: list[int] = sorted(note_scores.keys())
 
-    tp, fp, fn = _greedy_match(detected, expected, tolerance)
+    tp, fp, fn = _soft_greedy_match(note_scores, expected, tolerance)
 
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
@@ -151,7 +166,8 @@ def evaluate(
     return EvaluationResult(
         test_case=test_case,
         algorithm_name=algorithm.name,
-        detected=sorted(detected),
+        note_scores=note_scores,
+        detected=detected,
         expected=sorted(expected),
         tp=tp,
         fp=fp,

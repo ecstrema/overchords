@@ -23,6 +23,15 @@ def _note_list(midi_notes: list[int]) -> str:
     return ", ".join(_midi_name(n) for n in midi_notes) if midi_notes else "–"
 
 
+def _note_score_list(note_scores: dict[int, float]) -> str:
+    """Format detected notes with their detection fraction, e.g. ``C4(100%) E4(83%)``."""
+    if not note_scores:
+        return "–"
+    return ", ".join(
+        f"{_midi_name(n)}({s:.0%})" for n, s in sorted(note_scores.items())
+    )
+
+
 def _try_tabulate(rows: list, headers: list[str], tablefmt: str = "rounded_outline") -> str:
     try:
         from tabulate import tabulate  # type: ignore[import-untyped]
@@ -61,10 +70,10 @@ def print_report(results: list[EvaluationResult]) -> None:
                 status,
                 r.test_case.name,
                 _note_list(r.expected),
-                _note_list(r.detected),
-                r.tp,
-                r.fp,
-                r.fn,
+                _note_score_list(r.note_scores),
+                f"{r.tp:.2f}",
+                f"{r.fp:.2f}",
+                f"{r.fn:.2f}",
                 f"{r.precision:.2f}",
                 f"{r.recall:.2f}",
                 f"{r.f1:.2f}",
@@ -78,7 +87,7 @@ def print_report(results: list[EvaluationResult]) -> None:
     print("ALGORITHM RANKING  (sorted by mean F1 ↓)")
     print("=" * 90)
 
-    summary: list[tuple[str, float, float, float, int, int, int, int]] = []
+    summary: list[tuple[str, float, float, float, float, float, float, float]] = []
     for algo_name, algo_results in by_algo.items():
         n = len(algo_results)
         mean_f1        = sum(r.f1        for r in algo_results) / n

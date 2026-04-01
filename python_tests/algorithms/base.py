@@ -25,8 +25,8 @@ class DetectorAlgorithm(ABC):
 
         Args:
             audio:       Mono float32 audio samples in [-1, 1].
-                         The benchmark always passes exactly 4096 samples
-                         (one block), mirroring the Rust backend.
+                         The benchmark passes exactly 4096 samples per call,
+                         mirroring the Rust backend's ring-buffer chunk size.
             sample_rate: Sample rate of *audio* in Hz.
 
         Returns:
