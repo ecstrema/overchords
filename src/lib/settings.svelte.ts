@@ -42,8 +42,7 @@ export type AllSettings = {
   "piano.size": NumberSetting;
   "unfocused-opacity": NumberSetting;
   "notes-to-show": NumberSetting;
-  "hps-enabled": BooleanSetting;
-  "normalize-to-observed": BooleanSetting;
+  "note-probability-threshold": NumberSetting;
 };
 
 export class Settings {
@@ -122,6 +121,19 @@ export class Settings {
       type: "number",
       range: [1, 127],
     },
+    "note-probability-threshold": {
+      id: "note-probability-threshold",
+      name: "Note Probability Threshold",
+      description:
+        "Minimum probability for a note to be considered active (default: 0.5)",
+      defaultValue: 0.5,
+      value: JSON.parse(
+        localStorage.getItem("note-probability-threshold") || "0.5"
+      ),
+      type: "number",
+      range: [0, 1],
+      step: 0.05,
+    },
     "piano.size": {
       id: "piano.size",
       name: "Piano Size",
@@ -131,26 +143,6 @@ export class Settings {
       value: JSON.parse(localStorage.getItem("piano.size") || "20"),
       type: "number",
       range: [14, 100],
-    },
-    "hps-enabled": {
-      id: "hps-enabled",
-      name: "Harmonic Product Spectrum (HPS)",
-      description:
-        "Improves pitch detection by multiplying the spectrum with downsampled copies. Disable if high notes feel suppressed.",
-      advanced: true,
-      defaultValue: true,
-      value: JSON.parse(localStorage.getItem("hps-enabled") ?? "true"),
-      type: "boolean",
-    },
-    "normalize-to-observed": {
-      id: "normalize-to-observed",
-      name: "Normalize to observed peak",
-      description:
-        "When enabled, each frame is normalized to its own loudest note so the range is always fully used. When disabled, magnitudes are normalized to the long-term peak so quieter notes genuinely appear quieter.",
-      advanced: true,
-      defaultValue: true,
-      value: JSON.parse(localStorage.getItem("normalize-to-observed") ?? "true"),
-      type: "boolean",
     },
   });
 
@@ -164,18 +156,10 @@ export class Settings {
     });
 
     $effect(() => {
-      invoke("set_hps_enabled", {
-        enabled: this.settings["hps-enabled"].value,
+      invoke("set_note_probability_threshold", {
+        threshold: this.settings["note-probability-threshold"].value,
       }).catch((err) => {
-        console.error("Failed to set HPS enabled:", err);
-      });
-    });
-
-    $effect(() => {
-      invoke("set_normalize_to_observed", {
-        enabled: this.settings["normalize-to-observed"].value,
-      }).catch((err) => {
-        console.error("Failed to set normalization mode:", err);
+        console.error("Failed to set note probability threshold:", err);
       });
     });
 
@@ -231,11 +215,14 @@ export class Settings {
               setting.value = setting.defaultValue;
             }
             break;
-          case "boolean":
-            setting.value =
-              typeof parsedValue === "boolean"
-                ? parsedValue
-                : setting.defaultValue;
+          // case "boolean":
+          //   setting.value =
+          //     typeof parsedValue === "boolean"
+          //       ? parsedValue
+          //       : setting.defaultValue;
+          //   break;
+          default:
+            console.warn(`Unknown setting type for key ${event.key}`);
             break;
         }
       }

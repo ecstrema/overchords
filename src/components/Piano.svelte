@@ -81,7 +81,7 @@
     (data.isSharp ? blackKeys : whiteKeys).push({ ...data, midi: i });
   }
 
-  // Build two 256 length arrays of the fill and stroke colors for each magnitude level (0-255) for white and black keys, to avoid doing calculations in the render loop
+  // Build two 256 length arrays of the fill and stroke colors for each probablity level (0-255) for white and black keys, to avoid doing calculations in the render loop
   const whiteKeyFillColors = Array.from({ length: 256 }, (_, mag) => {
     const inverseMagHex = (255 - mag).toString(16).padStart(2, "0");
     return `#ff${inverseMagHex}${inverseMagHex}`;
@@ -93,7 +93,7 @@
   const getFillColor = (midi: number, isSharp: boolean) => {
     const activeNote = activeNotes.get(midi);
     const mag = Math.round(
-      255 * (activeNote ? Math.min(activeNote.magnitude, 1) : 0),
+      255 * (activeNote ? Math.min(activeNote.probability, 1) : 0),
     );
     return isSharp ? blackKeyFillColors[mag] : whiteKeyFillColors[mag];
   };

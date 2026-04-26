@@ -1,5 +1,6 @@
 mod audio;
 use audio::{start_listening, stop_listening};
+mod basic_pitch;
 
 /// start capturing audio output and emit `notes` events
 #[tauri::command]
@@ -15,18 +16,13 @@ fn stop_audio_listening() {
 }
 
 #[tauri::command]
-fn set_notes_to_keep(n: i8) {
+fn set_notes_to_keep(n: usize) {
     audio::set_notes_to_keep(n);
 }
 
 #[tauri::command]
-fn set_hps_enabled(enabled: bool) {
-    audio::set_hps_enabled(enabled);
-}
-
-#[tauri::command]
-fn set_normalize_to_observed(enabled: bool) {
-    audio::set_normalize_to_observed(enabled);
+fn set_note_probability_threshold(threshold: f32) {
+    audio::set_note_probability_threshold(threshold);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -37,8 +33,7 @@ pub fn run() {
             start_audio_listening,
             stop_audio_listening,
             set_notes_to_keep,
-            set_hps_enabled,
-            set_normalize_to_observed,
+            set_note_probability_threshold,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
