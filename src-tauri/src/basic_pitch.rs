@@ -44,38 +44,42 @@ impl BasicPitchStreamer {
         })
     }
 
-    /// Push new samples into the buffer and process as many windows as possible.
-    /// Returns a vector of ModelOutputs. This vector will be empty if not enough samples have been buffered to complete a window.
-    pub fn process_stream(&mut self, new_samples: &[f32]) -> ort::Result<Vec<ModelOutput>> {
+    /// Push new samples into the buffer and process the latest sliding window.
+    /// Returns a ModelOutput if the buffer is fully primed (has reached 43,844 samples).
+    pub fn process_stream(&mut self, new_samples: &[f32]) -> ort::Result<Option<ModelOutput>> {
         self.buffer.extend_from_slice(new_samples);
-        let mut results = Vec::new();
 
-        // While we have enough samples for a full model input window
-        while self.buffer.len() >= AUDIO_N_SAMPLES {
-            // Take the first AUDIO_N_SAMPLES from the buffer as input
-            let buffer = &self.buffer[..AUDIO_N_SAMPLES];
-            // Shape it as [batch, samples, channels] for the model
-            let dimensions = [1usize, AUDIO_N_SAMPLES, 1];
-            let tensor = Tensor::from_array((dimensions, buffer.to_vec()))?;
-
-            let outputs = self.session.run(inputs![tensor])?;
-
-            let contour = Self::extract_and_trim(&outputs, "StatefulPartitionedCall:0")?;
-            let note = Self::extract_and_trim(&outputs, "StatefulPartitionedCall:1")?;
-            let onset = Self::extract_and_trim(&outputs, "StatefulPartitionedCall:2")?;
-
-            results.push(ModelOutput {
-                note,
-                onset,
-                contour,
-            });
-
-            // Advance the buffer by HOP_SIZE (36,164 samples)
-            // This leaves exactly OVERLAP_LEN (7,680 samples) as the prefix for the next window.
-            self.buffer.drain(..HOP_SIZE);
+        // If we haven't accumulated the first 2 seconds of audio yet, wait.
+        if self.buffer.len() < AUDIO_N_SAMPLES {
+            return Ok(None);
         }
 
-        Ok(results)
+        // If our buffer has grown larger than the required window,
+        // drain the OLDEST samples from the front to maintain exactly AUDIO_N_SAMPLES.
+        if self.buffer.len() > AUDIO_N_SAMPLES {
+            let excess = self.buffer.len() - AUDIO_N_SAMPLES;
+            self.buffer.drain(..excess);
+        }
+
+        // The buffer is now exactly 43,844 samples. Run inference!
+        let dimensions = [1usize, AUDIO_N_SAMPLES, 1];
+        // Note: Using `self.buffer.clone()` here because Tensor::from_array takes ownership of the vec
+        let tensor = ort::value::Tensor::from_array((dimensions, self.buffer.clone()))?;
+
+        let outputs = self.session.run(inputs![tensor])?;
+
+        let contour = Self::extract_and_trim(&outputs, "StatefulPartitionedCall:0")?;
+        let note = Self::extract_and_trim(&outputs, "StatefulPartitionedCall:1")?;
+        let onset = Self::extract_and_trim(&outputs, "StatefulPartitionedCall:2")?;
+
+        // We DO NOT drain the buffer here!
+        // We leave it full so the next tiny chunk of audio slides the window forward.
+
+        Ok(Some(ModelOutput {
+            note,
+            onset,
+            contour,
+        }))
     }
 
     /// Helper to extract an output tensor, unwrap the batch dimension,

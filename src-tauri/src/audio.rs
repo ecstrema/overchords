@@ -51,9 +51,6 @@ pub fn start_listening(app_handle: AppHandle) {
         let (raw_audio_fifo, source_sample_rate, _stream) =
             start_listening_to_computer_audio(AUDIO_N_SAMPLES * 2);
 
-        let resampling_ratio = AUDIO_SAMPLE_RATE as f32 / source_sample_rate as f32;
-        let samples_per_window = (AUDIO_N_SAMPLES as f32 / resampling_ratio).ceil() as usize;
-
         let mut resampler = if source_sample_rate as usize != AUDIO_SAMPLE_RATE {
             Some(
                 Fft::<f32>::new(
@@ -70,33 +67,43 @@ pub fn start_listening(app_handle: AppHandle) {
             None
         };
 
-        let mut audio_buffer = Vec::with_capacity(samples_per_window * 2);
-        let mut resampled = vec![0.0; AUDIO_TOTAL_SAMPLES + 2048]; // Add some extra padding to ensure we can always resample a full window even if the input buffer is slightly underfilled. The resampler will just write zeros for the missing input samples.
+        let chunk_size = if let Some(r) = &resampler {
+            r.input_frames_next()
+        } else {
+            1024
+        };
+        let mut audio_buffer = Vec::with_capacity(chunk_size * 10);
+        let mut resampled = vec![0.0; chunk_size * 10 * 2]; // Give plenty of room
 
         // Inference Loop
         while RUNNING.load(Ordering::SeqCst) {
             let start_time = std::time::Instant::now();
 
-            // Drain the FIFO into a local buffer for processing
-            if !drain_audio_fifo(&raw_audio_fifo, &mut audio_buffer, samples_per_window) {
+            // Drain ONLY exact multiples of the chunk size.
+            // Any leftovers safely remain in the FIFO for the next loop.
+            if !drain_audio_fifo(&raw_audio_fifo, &mut audio_buffer, chunk_size) {
                 continue;
             }
 
+            // Resample (or just use raw)
             let audio_to_process = if let Some(resampler_ref) = resampler.as_mut() {
-                resample_audio_buffer(&audio_buffer, &mut resampled, resampler_ref);
-                &resampled[..AUDIO_N_SAMPLES] // Slice away the padding!
+                let written = resample_audio_buffer(&audio_buffer, &mut resampled, resampler_ref);
+                &resampled[..written]
             } else {
-                &audio_buffer[..AUDIO_N_SAMPLES] // No resampler needed, use raw data
+                &audio_buffer[..]
             };
 
             // Process the continuous stream
             // (BasicPitchStreamer buffers the 43,844 window internally)
-            let model_outputs = model.process_stream(&audio_to_process).unwrap_or_else(|e| {
+            // Process the continuous stream
+            let model_output = model.process_stream(&audio_to_process).unwrap_or_else(|e| {
                 eprintln!("Error during model inference: {:?}", e);
-                Vec::new()
+                None
             });
 
-            process_model_outputs(&app_handle, model_outputs);
+            if let Some(output) = model_output {
+                process_model_outputs(&app_handle, vec![output]);
+            }
 
             // Maintain ~30Hz loop cadence
             let elapsed = start_time.elapsed();
@@ -131,11 +138,13 @@ fn process_model_outputs(
 fn extract_note_events(output: crate::basic_pitch::ModelOutput) -> Vec<NoteEvent> {
     let mut note_events = Vec::new();
     let threshold = NOTES_PROBABILITY_THRESHOLD.load(Ordering::SeqCst) as f32 / 255.0;
-    // Iterate over the columns (the 88 frequency bins)
-    let frames_to_check = HOP_SIZE / FFT_HOP * 2;
+
+    // We only care about the very end of the sliding window (the present moment)
+    let frames_to_check = 2; // Look at the last 2 frames
     let frames_to_skip = output.note.shape()[0].saturating_sub(frames_to_check);
+
     for (i, col) in output.note.columns().into_iter().enumerate() {
-        // Only check the last HOP
+        // Find the max probability in the trailing edge of the window
         let max_prob = col.iter().skip(frames_to_skip).cloned().fold(0.0, f32::max);
 
         if max_prob > threshold {
@@ -145,9 +154,12 @@ fn extract_note_events(output: crate::basic_pitch::ModelOutput) -> Vec<NoteEvent
             });
         }
     }
+
     // Keep only the top N notes by probability
-    note_events.sort_by(|a, b| b.probability.partial_cmp(&a.probability).unwrap());
-    note_events.truncate(NOTES_TO_KEEP.load(Ordering::SeqCst));
+    if note_events.len() > NOTES_TO_KEEP.load(Ordering::SeqCst) {
+        note_events.sort_by(|a, b| b.probability.partial_cmp(&a.probability).unwrap());
+        note_events.truncate(NOTES_TO_KEEP.load(Ordering::SeqCst));
+    }
     note_events
 }
 
@@ -155,7 +167,7 @@ fn resample_audio_buffer(
     audio_buffer: &Vec<f32>,
     resampled: &mut Vec<f32>,
     resampler_ref: &mut Fft<f32>,
-) {
+) -> usize {
     let input_adapter =
         InterleavedSlice::new(audio_buffer, NUM_CHANNELS, audio_buffer.len()).unwrap();
 
@@ -172,6 +184,7 @@ fn resample_audio_buffer(
 
     let mut input_frames_left = audio_buffer.len();
     let mut input_frames_next = resampler_ref.input_frames_next();
+    let mut total_written = 0; // <-- Track total
 
     while input_frames_left >= input_frames_next {
         let (frames_read, frames_written) = resampler_ref
@@ -182,7 +195,10 @@ fn resample_audio_buffer(
         indexing.output_offset += frames_written;
         input_frames_left -= frames_read;
         input_frames_next = resampler_ref.input_frames_next();
+        total_written += frames_written; // <-- Update total
     }
+
+    total_written
 }
 
 /// Drains the raw audio fifo samples into the audio_buffer.
@@ -190,25 +206,22 @@ fn resample_audio_buffer(
 fn drain_audio_fifo(
     raw_audio_fifo: &Arc<Mutex<Vec<f32>>>,
     audio_buffer: &mut Vec<f32>,
-    samples_per_window: usize,
+    chunk_size: usize,
 ) -> bool {
     let mut fifo = match raw_audio_fifo.lock() {
         Ok(g) => g,
         Err(err) => err.into_inner(),
     };
-    let fifo_len = fifo.len();
 
     // if we don't have enough samples for a single window, we do not drain.
-    if fifo.len() < samples_per_window {
-        return false;
+    let chunks_available = fifo.len() / chunk_size;
+    if chunks_available == 0 {
+        return false; // Not enough for a full chunk yet
     }
 
-    // put the next window of samples into the audio buffer for processing. Remove the first FFT_HOP samples from the fifo to maintain the overlap for the next window.
+    let samples_to_take = chunks_available * chunk_size;
     audio_buffer.clear();
-    audio_buffer.extend_from_slice(&fifo[..samples_per_window]);
-
-    // If there is more than 1 FFT_HOP samples more than the current_window, they will all be drained, keeping a single FFT_HOP of overlap for the next window.
-    fifo.drain(..fifo_len.saturating_sub(samples_per_window + FFT_HOP));
+    audio_buffer.extend(fifo.drain(..samples_to_take));
 
     return true;
 }
