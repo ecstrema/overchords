@@ -11,20 +11,24 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::basic_pitch::{
-    BasicPitchStreamer, AUDIO_N_SAMPLES, AUDIO_SAMPLE_RATE, AUDIO_TOTAL_SAMPLES, FFT_HOP, HOP_SIZE,
-    NUM_CHANNELS,
+    BasicPitchStreamer, AUDIO_N_SAMPLES, AUDIO_SAMPLE_RATE, FFT_HOP, NUM_CHANNELS,
 };
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 static NOTES_TO_KEEP: AtomicUsize = AtomicUsize::new(5);
 static NOTES_PROBABILITY_THRESHOLD: AtomicU8 = AtomicU8::new(128); // Default threshold is 0.5 when scaled to [0, 255]
-
+static FRAMES_TO_CHECK: AtomicUsize = AtomicUsize::new(15); // Check the last 15 frames (0.087s) for note onsets, which is where they will be most accurate.
 pub fn set_notes_to_keep(n: usize) {
     NOTES_TO_KEEP.store(n, Ordering::SeqCst);
 }
 
 pub fn set_note_probability_threshold(threshold: f32) {
     NOTES_PROBABILITY_THRESHOLD.store((threshold * 255.0) as u8, Ordering::SeqCst);
+}
+
+pub fn set_frames_to_check(n: usize) {
+    println!("Setting frames to check to {}", n);
+    FRAMES_TO_CHECK.store(n, Ordering::SeqCst);
 }
 
 const MIDI_OFFSET: u8 = 21; // Basic Pitch outputs 88 bins starting at A0 (MIDI 21)
@@ -139,8 +143,12 @@ fn extract_note_events(output: crate::basic_pitch::ModelOutput) -> Vec<NoteEvent
     let mut note_events = Vec::new();
     let threshold = NOTES_PROBABILITY_THRESHOLD.load(Ordering::SeqCst) as f32 / 255.0;
 
-    // We only care about the very end of the sliding window (the present moment)
-    let frames_to_check = 2; // Look at the last 2 frames
+    let mut frames_to_check = FRAMES_TO_CHECK.load(Ordering::SeqCst);
+    if frames_to_check == 0 {
+        // auto mode
+        // calculate the number of frames from the model output's processed samples
+        frames_to_check = (output.processed_sample_count / FFT_HOP).max(1).min(100);
+    }
     let frames_to_skip = output.note.shape()[0].saturating_sub(frames_to_check);
 
     for (i, col) in output.note.columns().into_iter().enumerate() {
@@ -166,7 +174,7 @@ fn extract_note_events(output: crate::basic_pitch::ModelOutput) -> Vec<NoteEvent
 fn resample_audio_buffer(
     audio_buffer: &Vec<f32>,
     resampled: &mut Vec<f32>,
-    resampler_ref: &mut Fft<f32>,
+    resampler: &mut Fft<f32>,
 ) -> usize {
     let input_adapter =
         InterleavedSlice::new(audio_buffer, NUM_CHANNELS, audio_buffer.len()).unwrap();
@@ -183,22 +191,20 @@ fn resample_audio_buffer(
     };
 
     let mut input_frames_left = audio_buffer.len();
-    let mut input_frames_next = resampler_ref.input_frames_next();
-    let mut total_written = 0; // <-- Track total
+    let mut input_frames_next = resampler.input_frames_next();
 
     while input_frames_left >= input_frames_next {
-        let (frames_read, frames_written) = resampler_ref
+        let (frames_read, frames_written) = resampler
             .process_into_buffer(&input_adapter, &mut output_adapter, Some(&indexing))
             .expect("Failed to resample audio");
 
         indexing.input_offset += frames_read;
         indexing.output_offset += frames_written;
         input_frames_left -= frames_read;
-        input_frames_next = resampler_ref.input_frames_next();
-        total_written += frames_written; // <-- Update total
+        input_frames_next = resampler.input_frames_next();
     }
 
-    total_written
+    indexing.output_offset
 }
 
 /// Drains the raw audio fifo samples into the audio_buffer.

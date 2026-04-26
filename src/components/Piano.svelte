@@ -23,7 +23,7 @@
   const settings = getSettingsContext();
 
   // constants for SVG sizing
-  const whiteWidth = $derived.by(() => settings.settings["piano.size"].value);
+  const whiteWidth = $derived.by(() => settings.settings["window.height"].value);
   const whiteHeight = $derived.by(() => whiteWidth * 6);
   const blackWidth = $derived.by(() => whiteWidth * 0.6);
   const blackHeight = $derived.by(() => (blackWidth * 20) / 3);

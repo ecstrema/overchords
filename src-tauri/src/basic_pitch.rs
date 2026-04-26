@@ -1,5 +1,14 @@
 use ndarray::{s, Array2, ArrayView3};
-use ort::value::Tensor;
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+use ort::execution_providers::CUDAExecutionProvider;
+
+#[cfg(target_os = "windows")]
+use ort::execution_providers::DirectMLExecutionProvider;
+
+#[cfg(target_os = "macos")]
+use ort::execution_providers::CoreMLExecutionProvider;
+
 use ort::{inputs, session::builder::GraphOptimizationLevel, session::Session};
 use std::path::Path;
 
@@ -12,7 +21,6 @@ pub const AUDIO_N_SAMPLES: usize = AUDIO_TOTAL_SAMPLES - FFT_HOP;
 
 pub const DEFAULT_OVERLAPPING_FRAMES: usize = 30;
 pub const OVERLAP_LEN: usize = DEFAULT_OVERLAPPING_FRAMES * FFT_HOP; // 7680
-pub const HOP_SIZE: usize = AUDIO_N_SAMPLES - OVERLAP_LEN; // 36164
 
 pub const N_OVERLAP_FRAMES_HALF: usize = DEFAULT_OVERLAPPING_FRAMES / 2; // 15
 
@@ -22,6 +30,7 @@ pub struct ModelOutput {
     pub note: Array2<f32>,
     pub onset: Array2<f32>,
     pub contour: Array2<f32>,
+    pub processed_sample_count: usize,
 }
 
 pub struct BasicPitchStreamer {
@@ -31,8 +40,19 @@ pub struct BasicPitchStreamer {
 
 impl BasicPitchStreamer {
     pub fn new<P: AsRef<Path>>(model_path: P) -> ort::Result<Self> {
+        let mut providers = Vec::new();
+
+        // Priority list for execution providers. ORT will attempt them in order and fall back to CPU if needed.
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        providers.push(CUDAExecutionProvider::default().build());
+        #[cfg(target_os = "windows")]
+        providers.push(DirectMLExecutionProvider::default().build());
+        #[cfg(target_os = "macos")]
+        providers.push(CoreMLExecutionProvider::default().build());
+
         let session = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)?
+            .with_execution_providers(providers)?
             .commit_from_file(model_path)?;
 
         // To ensure we get the correct output for the first window, we need to start with a buffer that has 15 frames of padding (3840 samples) at the beginning.
@@ -56,10 +76,13 @@ impl BasicPitchStreamer {
 
         // If our buffer has grown larger than the required window,
         // drain the OLDEST samples from the front to maintain exactly AUDIO_N_SAMPLES.
-        if self.buffer.len() > AUDIO_N_SAMPLES {
+        let processed_samples = if self.buffer.len() > AUDIO_N_SAMPLES {
             let excess = self.buffer.len() - AUDIO_N_SAMPLES;
             self.buffer.drain(..excess);
-        }
+            excess
+        } else {
+            0
+        };
 
         // The buffer is now exactly 43,844 samples. Run inference!
         let dimensions = [1usize, AUDIO_N_SAMPLES, 1];
@@ -79,6 +102,7 @@ impl BasicPitchStreamer {
             note,
             onset,
             contour,
+            processed_sample_count: processed_samples,
         }))
     }
 

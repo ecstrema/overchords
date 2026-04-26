@@ -25,6 +25,11 @@ fn set_note_probability_threshold(threshold: f32) {
     audio::set_note_probability_threshold(threshold);
 }
 
+#[tauri::command]
+fn set_frames_to_check(n: usize) {
+    audio::set_frames_to_check(n);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     return tauri::Builder::default()
@@ -34,6 +39,7 @@ pub fn run() {
             stop_audio_listening,
             set_notes_to_keep,
             set_note_probability_threshold,
+            set_frames_to_check,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

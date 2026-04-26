@@ -39,10 +39,11 @@ export type AllSettings = {
   theme: SelectSetting;
   "piano.range.start": SelectSetting;
   "piano.range.end": SelectSetting;
-  "piano.size": NumberSetting;
+  "window.height": NumberSetting;
   "unfocused-opacity": NumberSetting;
   "notes-to-show": NumberSetting;
   "note-probability-threshold": NumberSetting;
+  "simultaneous-basic-pitch-frames-to-show": NumberSetting;
 };
 
 export class Settings {
@@ -114,6 +115,7 @@ export class Settings {
     "notes-to-show": {
       id: "notes-to-show",
       name: "Notes to Show",
+      advanced: true,
       description:
         "Number of notes to display on the piano (default: 127 - all)",
       defaultValue: 127,
@@ -125,22 +127,36 @@ export class Settings {
       id: "note-probability-threshold",
       name: "Note Probability Threshold",
       description:
-        "Minimum probability for a note to be considered active (default: 0.5)",
-      defaultValue: 0.5,
+        "Minimum probability for a note to be considered active (default: 0.25)",
+      defaultValue: 0.25,
       value: JSON.parse(
-        localStorage.getItem("note-probability-threshold") || "0.5"
+        localStorage.getItem("note-probability-threshold") || "0.25"
       ),
       type: "number",
       range: [0, 1],
       step: 0.05,
     },
-    "piano.size": {
-      id: "piano.size",
-      name: "Piano Size",
+    "simultaneous-basic-pitch-frames-to-show": {
+      id: "simultaneous-basic-pitch-frames-to-show",
+      name: "Simultaneous Basic Pitch Frames to Show",
       description:
-        "Size of the piano keys, as determined by the height of a white key (default: 20px)",
+        "Number of simultaneous Basic Pitch frames to display (default: 0). Set to 0 for auto mode, which calculates the number of frames based on the model output's processed samples.",
+      defaultValue: 0,
+      advanced: true,
+      value: JSON.parse(
+        localStorage.getItem("simultaneous-basic-pitch-frames-to-show") || "0"
+      ),
+      type: "number",
+      range: [0, 100],
+      step: 1,
+    },
+    "window.height": {
+      id: "window.height",
+      name: "Window Height",
+      description:
+        "Size of the window, as determined by the height of a white key (default: 20px)",
       defaultValue: 20,
-      value: JSON.parse(localStorage.getItem("piano.size") || "20"),
+      value: JSON.parse(localStorage.getItem("window.height") || "20"),
       type: "number",
       range: [14, 100],
     },
@@ -160,6 +176,15 @@ export class Settings {
         threshold: this.settings["note-probability-threshold"].value,
       }).catch((err) => {
         console.error("Failed to set note probability threshold:", err);
+      });
+    });
+
+    $effect(() => {
+      console.log("Setting simultaneous basic pitch frames to show to", this.settings["simultaneous-basic-pitch-frames-to-show"].value);
+      invoke("set_frames_to_check", {
+        n: this.settings["simultaneous-basic-pitch-frames-to-show"].value,
+      }).catch((err) => {
+        console.error("Failed to set simultaneous basic pitch frames to show:", err);
       });
     });
 
