@@ -90,10 +90,15 @@
     return `#${mag.toString(16).padStart(2, "0")}0000`;
   });
 
+  const normalize = (value: number, min: number, max: number) => {
+    if (max === min) return 0; // avoid division by zero
+    return (value - min) / (max - min);
+  };
+
   const getFillColor = (midi: number, isSharp: boolean) => {
     const activeNote = activeNotes.get(midi);
     const mag = Math.round(
-      255 * (activeNote ? Math.min(activeNote.probability, 1) : 0),
+      255 * (activeNote ? Math.min(normalize(activeNote.probability, settings.settings["note-probability-threshold"].value * 0.75, 0.8), 1) : 0),
     );
     return isSharp ? blackKeyFillColors[mag] : whiteKeyFillColors[mag];
   };
