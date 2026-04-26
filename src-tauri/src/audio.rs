@@ -100,8 +100,10 @@ pub fn start_listening(app_handle: AppHandle) {
 
             // Maintain ~30Hz loop cadence
             let elapsed = start_time.elapsed();
-            println!("Took {}ms", elapsed.as_millis());
-            let sleep_dur = std::time::Duration::from_millis(33).saturating_sub(elapsed);
+            if elapsed.as_millis() > 100 {
+                eprintln!("Warning: Inference loop is taking too long ({} ms)", elapsed.as_millis());
+            }
+            let sleep_dur = std::time::Duration::from_millis(30).saturating_sub(elapsed);
             std::thread::sleep(sleep_dur);
         }
     });
