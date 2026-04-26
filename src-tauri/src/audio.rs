@@ -11,13 +11,13 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::basic_pitch::{
-    BasicPitchStreamer, AUDIO_N_SAMPLES, AUDIO_SAMPLE_RATE, AUDIO_TOTAL_SAMPLES, FFT_HOP, HOP_SIZE,
+    BasicPitchStreamer, AUDIO_N_SAMPLES, AUDIO_SAMPLE_RATE, FFT_HOP, HOP_SIZE,
     NUM_CHANNELS,
 };
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 static NOTES_TO_KEEP: AtomicUsize = AtomicUsize::new(5);
-static NOTES_PROBABILITY_THRESHOLD: AtomicU8 = AtomicU8::new((THRESHOLD * 255.0) as u8);
+static NOTES_PROBABILITY_THRESHOLD: AtomicU8 = AtomicU8::new(128); // Default threshold is 0.5 when scaled to [0, 255]
 
 pub fn set_notes_to_keep(n: usize) {
     NOTES_TO_KEEP.store(n, Ordering::SeqCst);
@@ -28,7 +28,6 @@ pub fn set_note_probability_threshold(threshold: f32) {
 }
 
 const MIDI_OFFSET: u8 = 21; // Basic Pitch outputs 88 bins starting at A0 (MIDI 21)
-const THRESHOLD: f32 = 0.5;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct NoteEvent {
@@ -90,7 +89,8 @@ pub fn start_listening(app_handle: AppHandle) {
                 &audio_buffer[..AUDIO_N_SAMPLES] // No resampler needed, use raw data
             };
 
-            // Process the audio buffer through the model
+            // Process the continuous stream
+            // (BasicPitchStreamer buffers the 43,844 window internally)
             let model_outputs = model.process_stream(&audio_to_process).unwrap_or_else(|e| {
                 eprintln!("Error during model inference: {:?}", e);
                 Vec::new()
@@ -136,11 +136,7 @@ fn extract_note_events(output: crate::basic_pitch::ModelOutput) -> Vec<NoteEvent
     let frames_to_skip = output.note.shape()[0].saturating_sub(frames_to_check);
     for (i, col) in output.note.columns().into_iter().enumerate() {
         // Only check the last HOP
-        let max_prob = col
-            .iter()
-            .skip(frames_to_skip)
-            .cloned()
-            .fold(0.0, f32::max);
+        let max_prob = col.iter().skip(frames_to_skip).cloned().fold(0.0, f32::max);
 
         if max_prob > threshold {
             note_events.push(NoteEvent {
@@ -198,13 +194,7 @@ fn drain_audio_fifo(
 ) -> bool {
     let mut fifo = match raw_audio_fifo.lock() {
         Ok(g) => g,
-        Err(err) => {
-            eprintln!(
-                "Warning: raw_audio_fifo mutex poisoned in inference loop: {:?}. Recovering.",
-                err
-            );
-            err.into_inner()
-        }
+        Err(err) => err.into_inner(),
     };
     let fifo_len = fifo.len();
 
