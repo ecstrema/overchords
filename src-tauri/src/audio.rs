@@ -11,7 +11,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::basic_pitch::{
-    BasicPitchStreamer, AUDIO_N_SAMPLES, AUDIO_SAMPLE_RATE, AUDIO_TOTAL_SAMPLES, FFT_HOP,
+    BasicPitchStreamer, AUDIO_N_SAMPLES, AUDIO_SAMPLE_RATE, AUDIO_TOTAL_SAMPLES, FFT_HOP, HOP_SIZE,
     NUM_CHANNELS,
 };
 
@@ -101,7 +101,10 @@ pub fn start_listening(app_handle: AppHandle) {
             // Maintain ~30Hz loop cadence
             let elapsed = start_time.elapsed();
             if elapsed.as_millis() > 100 {
-                eprintln!("Warning: Inference loop is taking too long ({} ms)", elapsed.as_millis());
+                eprintln!(
+                    "Warning: Inference loop is taking too long ({} ms)",
+                    elapsed.as_millis()
+                );
             }
             let sleep_dur = std::time::Duration::from_millis(30).saturating_sub(elapsed);
             std::thread::sleep(sleep_dur);
@@ -129,9 +132,15 @@ fn extract_note_events(output: crate::basic_pitch::ModelOutput) -> Vec<NoteEvent
     let mut note_events = Vec::new();
     let threshold = NOTES_PROBABILITY_THRESHOLD.load(Ordering::SeqCst) as f32 / 255.0;
     // Iterate over the columns (the 88 frequency bins)
+    let frames_to_check = HOP_SIZE / FFT_HOP * 2;
+    let frames_to_skip = output.note.shape()[0].saturating_sub(frames_to_check);
     for (i, col) in output.note.columns().into_iter().enumerate() {
-        // Find the highest probability for this specific pitch in the current time window
-        let max_prob = col.into_iter().cloned().fold(0.0, f32::max);
+        // Only check the last HOP
+        let max_prob = col
+            .iter()
+            .skip(frames_to_skip)
+            .cloned()
+            .fold(0.0, f32::max);
 
         if max_prob > threshold {
             note_events.push(NoteEvent {
