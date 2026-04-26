@@ -11,7 +11,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::basic_pitch::{
-    BasicPitchStreamer, AUDIO_N_SAMPLES, AUDIO_SAMPLE_RATE, FFT_HOP, HOP_SIZE,
+    BasicPitchStreamer, AUDIO_N_SAMPLES, AUDIO_SAMPLE_RATE, AUDIO_TOTAL_SAMPLES, FFT_HOP, HOP_SIZE,
     NUM_CHANNELS,
 };
 
