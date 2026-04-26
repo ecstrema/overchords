@@ -221,9 +221,9 @@ fn start_listening_to_computer_audio(
 ) -> (Arc<Mutex<Vec<f32>>>, u32, cpal::Stream) {
     let host = cpal::default_host();
     let device = host
-        .default_input_device()
+        .default_output_device()
         .expect("no audio device available");
-    let config: cpal::StreamConfig = device.default_input_config().unwrap().into();
+    let config: cpal::StreamConfig = device.default_output_config().unwrap().into();
 
     let raw_audio_fifo = Arc::new(Mutex::new(Vec::<f32>::with_capacity(capacity_hint)));
 
