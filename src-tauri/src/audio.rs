@@ -81,13 +81,14 @@ pub fn start_listening(app_handle: AppHandle) {
 
         // Inference Loop
         while RUNNING.load(Ordering::SeqCst) {
-            let start_time = std::time::Instant::now();
-
             // Drain ONLY exact multiples of the chunk size.
             // Any leftovers safely remain in the FIFO for the next loop.
             if !drain_audio_fifo(&raw_audio_fifo, &mut audio_buffer, chunk_size) {
-                continue;
+                // short sleep to avoid busy waiting when we don't have enough audio yet
+                std::thread::sleep(std::time::Duration::from_millis(1));
             }
+
+            let start_time = std::time::Instant::now();
 
             // Resample (or just use raw)
             let audio_to_process = if let Some(resampler_ref) = resampler.as_mut() {
