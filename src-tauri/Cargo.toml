@@ -24,15 +24,20 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 cpal = "0.17.3"
 ndarray = "0.17.2"
-ort = { version = "2.0.0-rc.12", features = ["cuda", "directml", "coreml"] }
+ort = { version = "2.0.0-rc.12" }
 rubato = "2.0.0"
 audioadapter-buffers = "3.0.0"
 
-[profile.dev]
-incremental = true # Compile your binary in smaller steps.
+[target.'cfg(target_os = "windows")'.dependencies]
+ort = { version = "2.0.0-rc.12", features = ["cuda", "directml"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ort = { version = "2.0.0-rc.12", features = ["cuda"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+ort = { version = "2.0.0-rc.12", features = ["coreml"] }
 
 [profile.release]
-codegen-units = 1 # Allows LLVM to perform better optimization.
 lto = true # Enables link-time-optimizations.
 opt-level = "s" # Prioritizes small binary size. Use `3` if you prefer speed.
 panic = "abort" # Higher performance by disabling panic handlers.
