@@ -1,5 +1,9 @@
 # Overchords
 
+<div align="center">
+  <img src="screenshot.png" alt="Overchords screenshot" width="600"/>
+</div>
+
 Overchords shows the curently playing notes from the speaker output in a piano view.
 
 The rust backend uses the cpal library to capture the audio output and perform a Fourier transform to determine the frequencies being played. The frequencies are then mapped to musical notes and sent to the frontend.
