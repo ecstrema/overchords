@@ -68,12 +68,12 @@ export class Settings {
     "piano.range.start": {
       id: "piano.range.start",
       name: "Piano Range Start",
-      defaultValue: "24",
-      value: JSON.parse(localStorage.getItem("piano.range.start") || '"24"'),
+      defaultValue: "36",
+      value: JSON.parse(localStorage.getItem("piano.range.start") || '"36"'),
       type: "select",
       options: [
-        { value: "0", label: "C-1", description: "Lowest MIDI note" },
-        { value: "12", label: "C0" },
+        // { value: "0", label: "C-1", description: "Lowest MIDI note" },
+        { value: "12", label: "C0", description: "Warning: in order to keep the delay between what you hear and what you see minimal, the algorithm is not optimized for detecting low notes. It will therefore miss most low notes." },
         {
           value: "24",
           label: "C1",
