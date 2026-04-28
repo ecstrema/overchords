@@ -2,7 +2,8 @@
 
 <div align="center">
   <img src="screenshot.png" alt="Overchords screenshot" width="600"/>
-  Real-time piano view of the notes being played on your computer.
+
+  <p>Real-time piano view of the notes being played on your computer.</p>
 </div>
 
 Overchords shows playing notes from the speaker output in a piano view.
