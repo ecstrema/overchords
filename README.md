@@ -2,20 +2,25 @@
 
 <div align="center">
   <img src="screenshot.png" alt="Overchords screenshot" width="600"/>
+  Real-time piano view of the notes being played on your computer.
 </div>
 
-Overchords shows the curently playing notes from the speaker output in a piano view.
+Overchords shows playing notes from the speaker output in a piano view.
 
-The rust backend uses the cpal library to capture the audio output and perform a Fourier transform to determine the frequencies being played. The frequencies are then mapped to musical notes and sent to the frontend.
-
-The frontend is a window that shows the currently playing notes in a piano view. The notes are highlighted as they are played, allowing you to see the chords being played in real-time.
+The rust backend uses the cpal library to capture the audio output and uses [Basic-Pitch](https://github.com/spotify/basic-pitch) to detect the notes being played.
 
 # Development
 
-First, make sure you have Rust and Cargo installed. You can install them from [rustup.rs](https://rustup.rs/).
+## Building
 
-Also, you'll need [Bun](https://bun.sh/).
+You'll need Rust and Cargo (install via [rustup.rs](https://rustup.rs/)) and [Bun](https://bun.sh/) to run the application locally.
 
-Then, install the dependencies with `bun install`.
+Install the dependencies: `bun install`
 
-Finally, you can run the application with `bun tauri dev`.
+Run the application: `bun tauri dev`
+
+## Publishing a release
+
+Update the version in `src-tauri/Cargo.toml`, `package.json` and `src-tauri/tauri.conf.json`.
+
+Then, add a commit to the `release` branch and push it to the remote repository. The [GitHub Action](`.github/workflows/release.yml`) will automatically build the application for all platforms and create a new release on GitHub with the generated binaries attached. This is a draft release, so you can review it before publishing it. Once you're ready, you can publish the release on GitHub and the binaries will be available for download.
