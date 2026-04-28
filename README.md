@@ -10,6 +10,10 @@ Overchords shows playing notes from the speaker output in a piano view.
 
 The rust backend uses the cpal library to capture the audio output and uses [Basic-Pitch](https://github.com/spotify/basic-pitch) to detect the notes being played.
 
+# Download
+
+Download the install for your platform on [the releases](releases) page.
+
 # Development
 
 ## Building
